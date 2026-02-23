@@ -7,6 +7,7 @@
  * @property {boolean} is_global
  * @property {boolean} is_completed
  * @property {boolean} is_archived
+ * @property {boolean} is_review
  * @property {string|null} completed_at - ISO datetime string
  * @property {string} created_at - ISO datetime string
  * @property {string} updated_at - ISO datetime string
@@ -20,6 +21,8 @@
  * @property {string} title
  * @property {boolean} is_completed
  * @property {number} sort_order
+ * @property {string|null} deadline - ISO date string (YYYY-MM-DD)
+ * @property {string[]} tags
  * @property {string|null} completed_at - ISO datetime string
  * @property {string} created_at - ISO datetime string
  */
@@ -30,6 +33,20 @@
  * @property {number} current_streak
  * @property {number} longest_streak
  * @property {string|null} last_activity_date - ISO date string
+ * @property {number} total_reviews_completed
+ */
+
+/**
+ * @typedef {Object} Review
+ * @property {number} id
+ * @property {number} todo_id
+ * @property {string} todo_title
+ * @property {number} review_number - 1, 2, or 3
+ * @property {string} review_date - ISO date string (YYYY-MM-DD)
+ * @property {string} priority
+ * @property {boolean} is_completed
+ * @property {string|null} completed_at
+ * @property {string} created_at
  */
 
 /**

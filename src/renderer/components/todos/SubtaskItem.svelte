@@ -1,15 +1,39 @@
 <script>
   import { createEventDispatcher } from "svelte";
-  import { Check, Edit3, Trash2, X } from "lucide-svelte";
+  import { Check, Edit3, Trash2, X, Calendar, AlertCircle } from "lucide-svelte";
   import TextInputWithEmoji from "$components/common/TextInputWithEmoji.svelte";
+  import { getSubtaskTagsByIds } from "$lib/stores/priorityStore.js";
 
   export let subtask;
   export let readonly = false;
+  export let isGlobal = false;
 
   const dispatch = createEventDispatcher();
 
   let isEditing = false;
   let editTitle = subtask.title;
+
+  $: tags = getSubtaskTagsByIds(subtask.tags || []);
+
+  function isDeadlinePassed(dateStr) {
+    if (!dateStr) return false;
+    const today = new Date().toISOString().split("T")[0];
+    return dateStr < today;
+  }
+
+  function formatDeadline(dateStr) {
+    if (!dateStr) return "";
+    const date = new Date(dateStr + "T00:00:00");
+    return date
+      .toLocaleDateString("en-GB", {
+        day: "2-digit",
+        month: "2-digit",
+        year: "numeric",
+      })
+      .replace(/\//g, ".");
+  }
+
+  $: isOverdue = isGlobal && subtask.deadline && isDeadlinePassed(subtask.deadline);
 
   function toggleCompleted() {
     dispatch("toggle", {
@@ -51,9 +75,9 @@
   }
 </script>
 
-<div class="flex items-center gap-2 group py-1">
+<div class="flex items-start gap-2 group py-1">
   <button
-    class="w-5 h-5 rounded border-2 flex items-center justify-center transition-colors flex-shrink-0
+    class="w-5 h-5 rounded border-2 flex items-center justify-center transition-colors flex-shrink-0 mt-0.5
            {subtask.is_completed
       ? 'bg-primary border-primary'
       : 'border-gray-500 hover:border-primary'}"
@@ -88,17 +112,48 @@
       </button>
     </div>
   {:else}
-    <span
-      class="flex-1 text-sm {subtask.is_completed
-        ? 'line-through text-gray-500'
-        : 'text-on-surface'}"
-    >
-      {subtask.title}
-    </span>
+    <div class="flex-1 min-w-0">
+      <div class="flex items-center gap-1 flex-wrap">
+        <span
+          class="text-sm {subtask.is_completed
+            ? 'line-through text-gray-500'
+            : 'text-on-surface'}"
+        >
+          {subtask.title}
+        </span>
+
+        <!-- Tags badges -->
+        {#each tags as tag}
+          <span
+            class="inline-flex items-center px-1.5 py-0.5 rounded text-xs {tag.color} text-white"
+          >
+            {tag.label}
+          </span>
+        {/each}
+
+        <!-- Deadline badge for global subtasks -->
+        {#if isGlobal && subtask.deadline}
+          <span
+            class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs
+            {isOverdue
+              ? 'bg-error/20 text-error'
+              : 'bg-primary/20 text-primary'}"
+          >
+            {#if isOverdue}
+              <AlertCircle size="{10}" />
+              Overdue ({formatDeadline(subtask.deadline)})
+            {:else}
+              <Calendar size="{10}" />
+              {formatDeadline(subtask.deadline)}
+            {/if}
+          </span>
+        {/if}
+      </div>
+    </div>
 
     {#if !readonly}
       <div
-        class="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity"
+        class="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0"
       >
         <button
           class="p-1 rounded hover:bg-surface-lighter text-gray-500 hover:text-on-surface"

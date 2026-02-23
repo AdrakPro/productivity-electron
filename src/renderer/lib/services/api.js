@@ -15,10 +15,12 @@ const mockApi = {
     archiveByDate: async () => 0,
   },
   subtasks: {
-    create: async (todoId, title) => ({
+    create: async (todoId, title, deadline, tags) => ({
       id: Date.now(),
       todo_id: todoId,
       title,
+      deadline: deadline || null,
+      tags: tags || [],
       is_completed: false,
     }),
     update: async (id, updates) => ({ id, ...updates }),
@@ -30,6 +32,7 @@ const mockApi = {
       total_completed: 0,
       current_streak: 0,
       longest_streak: 0,
+      total_reviews_completed: 0,
     }),
     update: async (data) => data,
   },
@@ -49,6 +52,23 @@ const mockApi = {
     getAutoLaunch: async () => false,
     setAutoLaunch: async () => true,
     getVersion: async () => "1.0.0",
+  },
+  reviews: {
+    getByTodoId: async () => [],
+    getByDate: async () => [],
+    getDueToday: async () => [],
+    getAllPending: async () => [],
+    complete: async (id) => ({ completed: { id }, nextReview: null }),
+    getAll: async () => [],
+    create: async (todoId, reviewNumber, reviewDate, priority) => ({
+      id: Date.now(),
+      todo_id: todoId,
+      review_number: reviewNumber,
+      review_date: reviewDate,
+      priority: priority || "none",
+      is_completed: false,
+    }),
+    updatePriority: async (id, priority) => ({ id, priority }),
   },
 };
 
@@ -95,8 +115,8 @@ export const todosApi = {
 
 // Subtask API
 export const subtasksApi = {
-  async create(todoId, title) {
-    return api.subtasks.create(todoId, title);
+  async create(todoId, title, deadline, tags) {
+    return api.subtasks.create(todoId, title, deadline, tags);
   },
 
   async update(id, updates) {
@@ -221,5 +241,40 @@ export const appApi = {
 
   async getPaths() {
     return api.app.getPaths();
+  },
+};
+
+// Reviews API
+export const reviewsApi = {
+  async getByTodoId(todoId) {
+    return api.reviews.getByTodoId(todoId);
+  },
+
+  async getByDate(date) {
+    return api.reviews.getByDate(date);
+  },
+
+  async getDueToday() {
+    return api.reviews.getDueToday();
+  },
+
+  async getAllPending() {
+    return api.reviews.getAllPending();
+  },
+
+  async complete(id) {
+    return api.reviews.complete(id);
+  },
+
+  async getAll() {
+    return api.reviews.getAll();
+  },
+
+  async create(todoId, reviewNumber, reviewDate, priority) {
+    return api.reviews.create(todoId, reviewNumber, reviewDate, priority);
+  },
+
+  async updatePriority(id, priority) {
+    return api.reviews.updatePriority(id, priority);
   },
 };

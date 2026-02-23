@@ -2,6 +2,7 @@
   import { onMount } from "svelte";
   import {
     BarChart3,
+    BookOpen,
     Calendar,
     CheckCircle2,
     Flame,
@@ -98,6 +99,12 @@
       value="{globalTodos}"
       icon="{BarChart3}"
       iconColor="text-purple-400"
+    />
+    <StatsCard
+      title="Total Reviews Done"
+      value="{$statistics.total_reviews_completed ?? 0}"
+      icon="{BookOpen}"
+      iconColor="text-indigo-400"
     />
   </div>
 

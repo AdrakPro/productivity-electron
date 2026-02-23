@@ -1,21 +1,20 @@
 <script>
   import { createEventDispatcher, onMount } from "svelte";
-  import { Check, X, Calendar } from "lucide-svelte";
+  import { Check, X, BookOpen } from "lucide-svelte";
   import TextInputWithEmoji from "$components/common/TextInputWithEmoji.svelte";
   import TextareaWithEmoji from "$components/common/TextareaWithEmoji.svelte";
   import PriorityPicker from "$components/common/PriorityPicker.svelte";
   import LabelsPicker from "$components/common/LabelsPicker.svelte";
   import LabelIcon from "$components/common/LabelIcon.svelte";
-  import { viewMode } from "$lib/stores/viewStore.js";
   import { defaultLabels } from "$lib/stores/priorityStore.js";
 
   const dispatch = createEventDispatcher();
 
   let title = "";
   let description = "";
-  let deadline = "";
   let priority = "none";
   let labels = [];
+  let isReview = false;
   let titleInputRef;
 
   // Expose focus method
@@ -34,15 +33,15 @@
       dispatch("submit", {
         title: title.trim(),
         description: description.trim(),
-        deadline: $viewMode === "global" ? deadline || null : null,
         priority,
         labels,
+        is_review: isReview,
       });
       title = "";
       description = "";
-      deadline = "";
       priority = "none";
       labels = [];
+      isReview = false;
     }
   }
 
@@ -139,31 +138,15 @@
       </div>
     {/if}
 
-    <!-- Deadline picker for global tasks -->
-    {#if $viewMode === "global"}
-      <div class="flex items-center gap-2">
-        <Calendar size="{16}" class="text-gray-500 flex-shrink-0" />
-        <span class="text-sm text-gray-400">Deadline</span>
-        <input
-          type="date"
-          class="input text-sm py-1"
-          bind:value="{deadline}"
-          placeholder="Optional"
-        />
-        {#if deadline}
-          <button
-            type="button"
-            class="text-gray-500 hover:text-error p-1 rounded hover:bg-surface-lighter"
-            on:click="{() => (deadline = '')}"
-            title="Clear deadline"
-          >
-            <X size="{14}" />
-          </button>
-        {:else}
-          <span class="text-xs text-gray-500">(optional)</span>
-        {/if}
-      </div>
-    {/if}
+    <!-- Mark for Review checkbox -->
+    <label
+      class="flex items-center gap-2 cursor-pointer w-fit"
+      title="Mark this task for spaced-repetition review"
+    >
+      <input type="checkbox" bind:checked="{isReview}" class="rounded" />
+      <BookOpen size="{14}" class="text-indigo-400" />
+      <span class="text-sm text-gray-400">Mark for Review</span>
+    </label>
 
     <div class="flex gap-2">
       <button

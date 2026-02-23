@@ -19,7 +19,7 @@
     {:else}
       <h1 class="text-2xl font-bold text-on-surface">Global Tasks</h1>
       <p class="text-gray-400 text-sm mt-1">
-        Tasks with deadlines, not tied to specific days
+        Tasks not tied to specific days, with subtask deadlines
       </p>
     {/if}
   </div>

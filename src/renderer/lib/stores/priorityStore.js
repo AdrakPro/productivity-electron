@@ -73,3 +73,22 @@ export function getLabelsByIds(ids) {
   if (!ids || !Array.isArray(ids)) return [];
   return ids.map((id) => getLabelById(id)).filter(Boolean);
 }
+
+// Subtask tags (fixed list, NOT inherited from parent)
+export const subtaskTags = [
+  { id: "c", label: "C", color: "bg-gray-600" },
+  { id: "cpp", label: "C++", color: "bg-blue-700" },
+  { id: "python", label: "Python", color: "bg-yellow-600" },
+  { id: "cybersecurity", label: "Cybersecurity", color: "bg-red-700" },
+  { id: "architecture", label: "Architecture", color: "bg-purple-700" },
+  { id: "devops", label: "DevOps", color: "bg-cyan-700" },
+];
+
+export function getSubtaskTagById(id) {
+  return subtaskTags.find((t) => t.id === id);
+}
+
+export function getSubtaskTagsByIds(ids) {
+  if (!ids || !Array.isArray(ids)) return [];
+  return ids.map((id) => getSubtaskTagById(id)).filter(Boolean);
+}

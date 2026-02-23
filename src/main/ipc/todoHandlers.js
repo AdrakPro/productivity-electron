@@ -12,6 +12,7 @@ function registerTodoHandlers(todoRepo, subtaskRepo, statisticsRepo) {
         is_global: Boolean(todo.is_global),
         is_completed: Boolean(todo.is_completed),
         is_archived: Boolean(todo.is_archived),
+        is_review: Boolean(todo.is_review),
         subtasks: subtaskRepo.getByTodoId(todo.id).map((s) => ({
           ...s,
           is_completed: Boolean(s.is_completed),
@@ -31,6 +32,7 @@ function registerTodoHandlers(todoRepo, subtaskRepo, statisticsRepo) {
         is_global: Boolean(todo.is_global),
         is_completed: Boolean(todo.is_completed),
         is_archived: Boolean(todo.is_archived),
+        is_review: Boolean(todo.is_review),
         subtasks: subtaskRepo.getByTodoId(todo.id).map((s) => ({
           ...s,
           is_completed: Boolean(s.is_completed),
@@ -50,6 +52,7 @@ function registerTodoHandlers(todoRepo, subtaskRepo, statisticsRepo) {
         is_global: Boolean(todo.is_global),
         is_completed: Boolean(todo.is_completed),
         is_archived: Boolean(todo.is_archived),
+        is_review: Boolean(todo.is_review),
         subtasks: subtaskRepo.getByTodoId(todo.id).map((s) => ({
           ...s,
           is_completed: Boolean(s.is_completed),
@@ -69,6 +72,7 @@ function registerTodoHandlers(todoRepo, subtaskRepo, statisticsRepo) {
         is_global: Boolean(todo.is_global),
         is_completed: Boolean(todo.is_completed),
         is_archived: Boolean(todo.is_archived),
+        is_review: Boolean(todo.is_review),
         subtasks: subtaskRepo.getByTodoId(todo.id).map((s) => ({
           ...s,
           is_completed: Boolean(s.is_completed),
@@ -88,6 +92,7 @@ function registerTodoHandlers(todoRepo, subtaskRepo, statisticsRepo) {
         is_global: Boolean(todo.is_global),
         is_completed: Boolean(todo.is_completed),
         is_archived: Boolean(todo.is_archived),
+        is_review: Boolean(todo.is_review),
         subtasks: [],
       };
     } catch (error) {
@@ -110,6 +115,7 @@ function registerTodoHandlers(todoRepo, subtaskRepo, statisticsRepo) {
         is_global: Boolean(todo.is_global),
         is_completed: Boolean(todo.is_completed),
         is_archived: Boolean(todo.is_archived),
+        is_review: Boolean(todo.is_review),
         subtasks: subtaskRepo.getByTodoId(todo.id).map((s) => ({
           ...s,
           is_completed: Boolean(s.is_completed),
@@ -143,6 +149,7 @@ function registerTodoHandlers(todoRepo, subtaskRepo, statisticsRepo) {
             is_global: Boolean(todo.is_global),
             is_completed: Boolean(todo.is_completed),
             is_archived: Boolean(todo.is_archived),
+            is_review: Boolean(todo.is_review),
             subtasks: subtaskRepo.getByTodoId(todo.id).map((s) => ({
               ...s,
               is_completed: Boolean(s.is_completed),

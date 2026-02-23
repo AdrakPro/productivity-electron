@@ -96,6 +96,45 @@ function runMigrations(db) {
         ALTER TABLE todos ADD COLUMN labels TEXT DEFAULT '[]';
       `,
     },
+    {
+      name: "007_add_deadline_to_subtasks",
+      sql: `
+        ALTER TABLE subtasks ADD COLUMN deadline TEXT;
+      `,
+    },
+    {
+      name: "008_add_review_system",
+      sql: `
+        ALTER TABLE todos ADD COLUMN is_review INTEGER DEFAULT 0;
+
+        CREATE TABLE IF NOT EXISTS reviews (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          todo_id INTEGER NOT NULL,
+          review_number INTEGER NOT NULL,
+          review_date TEXT NOT NULL,
+          priority TEXT DEFAULT 'none',
+          is_completed INTEGER DEFAULT 0,
+          completed_at TEXT,
+          created_at TEXT DEFAULT (datetime('now')),
+          FOREIGN KEY (todo_id) REFERENCES todos(id) ON DELETE CASCADE
+        );
+        CREATE INDEX IF NOT EXISTS idx_reviews_todo_id ON reviews(todo_id);
+        CREATE INDEX IF NOT EXISTS idx_reviews_review_date ON reviews(review_date);
+        CREATE INDEX IF NOT EXISTS idx_reviews_is_completed ON reviews(is_completed);
+      `,
+    },
+    {
+      name: "009_add_total_reviews_to_statistics",
+      sql: `
+        ALTER TABLE statistics ADD COLUMN total_reviews_completed INTEGER DEFAULT 0;
+      `,
+    },
+    {
+      name: "010_add_tags_to_subtasks",
+      sql: `
+        ALTER TABLE subtasks ADD COLUMN tags TEXT DEFAULT '[]';
+      `,
+    },
   ];
 
   // Check which migrations have been executed

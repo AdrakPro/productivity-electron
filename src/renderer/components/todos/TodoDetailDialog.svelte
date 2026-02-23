@@ -184,9 +184,7 @@
           <div class="bg-surface-lighter rounded-lg p-3">
             <div class="flex items-center gap-2 text-gray-400 text-sm mb-1">
               <Calendar size="{14}" />
-              <span
-                >{$selectedArchivedTodo.is_global ? "Deadline" : "Date"}</span
-              >
+              <span>Date</span>
             </div>
             <p class="text-on-surface font-medium">
               {formatDate($selectedArchivedTodo.due_date)}
