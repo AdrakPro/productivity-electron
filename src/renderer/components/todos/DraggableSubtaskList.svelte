@@ -7,6 +7,7 @@
   export let subtasks = [];
   export let readonly = false;
   export let isGlobal = false;
+  export let isReview = false;
 
   const dispatch = createEventDispatcher();
 
@@ -81,7 +82,7 @@
 
       <!-- Subtask Item -->
       <div class="flex-1">
-        <SubtaskItem {subtask} {readonly} {isGlobal} on:toggle on:delete on:edit />
+        <SubtaskItem {subtask} {readonly} {isGlobal} {isReview} on:toggle on:delete on:edit />
       </div>
     </div>
   {/each}

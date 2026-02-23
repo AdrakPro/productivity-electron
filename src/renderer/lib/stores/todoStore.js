@@ -5,10 +5,8 @@ import {
   subtasksApi,
   statisticsApi,
   streaksApi,
-  reviewsApi,
 } from "$lib/services/api.js";
 import { success, error as showError } from "./toastStore.js";
-import { statistics, streakData } from "./statisticsStore.js";
 
 // All todos from database (with subtasks embedded)
 export const todos = writable([]);
@@ -105,21 +103,8 @@ export async function addTodo(todoData) {
       ...todoData,
       priority: todoData.priority || "none",
       labels: todoData.labels || [],
-      is_review: todoData.is_review || false,
     });
     todos.update((list) => [...list, newTodo]);
-
-    // If marked for review, auto-create Review 1 (today + 1 day)
-    if (todoData.is_review) {
-      try {
-        const reviewDate = new Date();
-        reviewDate.setDate(reviewDate.getDate() + 1);
-        const reviewDateStr = reviewDate.toISOString().split("T")[0];
-        await reviewsApi.create(newTodo.id, 1, reviewDateStr, newTodo.priority);
-      } catch (reviewErr) {
-        console.error("Failed to create initial review:", reviewErr);
-      }
-    }
 
     success("Task created");
     return newTodo;
@@ -194,7 +179,12 @@ export async function restoreTodo(todo) {
     // Restore subtasks
     if (todo.subtasks && todo.subtasks.length > 0) {
       for (const subtask of todo.subtasks) {
-        await subtasksApi.create(restoredTodo.id, subtask.title);
+        await subtasksApi.create(
+          restoredTodo.id,
+          subtask.title,
+          subtask.deadline || null,
+          subtask.tags || [],
+        );
       }
     }
 
@@ -476,7 +466,12 @@ export async function importTodos(file) {
             // Import subtasks
             if (todo.subtasks && todo.subtasks.length > 0) {
               for (const subtask of todo.subtasks) {
-                await subtasksApi.create(newTodo.id, subtask.title);
+                await subtasksApi.create(
+                  newTodo.id,
+                  subtask.title,
+                  subtask.deadline || null,
+                  subtask.tags || [],
+                );
                 // Mark as completed if it was completed
                 if (subtask.is_completed) {
                   const createdSubtasks =

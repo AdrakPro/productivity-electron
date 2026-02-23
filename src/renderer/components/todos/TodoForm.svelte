@@ -1,6 +1,6 @@
 <script>
   import { createEventDispatcher, onMount } from "svelte";
-  import { Check, X, BookOpen } from "lucide-svelte";
+  import { Check, X } from "lucide-svelte";
   import TextInputWithEmoji from "$components/common/TextInputWithEmoji.svelte";
   import TextareaWithEmoji from "$components/common/TextareaWithEmoji.svelte";
   import PriorityPicker from "$components/common/PriorityPicker.svelte";
@@ -14,7 +14,6 @@
   let description = "";
   let priority = "none";
   let labels = [];
-  let isReview = false;
   let titleInputRef;
 
   // Expose focus method
@@ -35,13 +34,11 @@
         description: description.trim(),
         priority,
         labels,
-        is_review: isReview,
       });
       title = "";
       description = "";
       priority = "none";
       labels = [];
-      isReview = false;
     }
   }
 
@@ -137,16 +134,6 @@
         {/each}
       </div>
     {/if}
-
-    <!-- Mark for Review checkbox -->
-    <label
-      class="flex items-center gap-2 cursor-pointer w-fit"
-      title="Mark this task for spaced-repetition review"
-    >
-      <input type="checkbox" bind:checked="{isReview}" class="rounded" />
-      <BookOpen size="{14}" class="text-indigo-400" />
-      <span class="text-sm text-gray-400">Mark for Review</span>
-    </label>
 
     <div class="flex gap-2">
       <button

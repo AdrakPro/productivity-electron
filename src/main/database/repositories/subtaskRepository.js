@@ -59,7 +59,9 @@ class SubtaskRepository {
   }
 
   getByTodoId(todoId) {
-    return this.statements.getByTodoId.all(todoId).map((s) => this._parseSubtask(s));
+    return this.statements.getByTodoId
+      .all(todoId)
+      .map((s) => this._parseSubtask(s));
   }
 
   getById(id) {
@@ -78,7 +80,7 @@ class SubtaskRepository {
       tags: JSON.stringify(tags || []),
     });
 
-    return this._parseSubtask(this.getById(result.lastInsertRowid));
+    return this.getById(result.lastInsertRowid);
   }
 
   _parseSubtask(subtask) {
@@ -108,11 +110,7 @@ class SubtaskRepository {
         ? null
         : existing.completed_at;
 
-    const existingTags = existing.tags
-      ? typeof existing.tags === "string"
-        ? JSON.parse(existing.tags)
-        : existing.tags
-      : [];
+    const existingTags = Array.isArray(existing.tags) ? existing.tags : [];
 
     this.statements.update.run({
       id,
@@ -126,7 +124,7 @@ class SubtaskRepository {
         : JSON.stringify(existingTags),
     });
 
-    return this._parseSubtask(this.getById(id));
+    return this.getById(id);
   }
 
   delete(id) {

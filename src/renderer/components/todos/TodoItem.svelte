@@ -9,6 +9,7 @@
     X,
     CheckCircle2,
     Calendar,
+    BookOpen,
   } from "lucide-svelte";
   import {
     getTodoProgress,
@@ -25,6 +26,8 @@
     getLabelsByIds,
     defaultLabels,
   } from "$lib/stores/priorityStore.js";
+  import { reviewsApi } from "$lib/services/api.js";
+  import { loadReviews } from "$lib/stores/reviewStore.js";
   import DraggableSubtaskList from "./DraggableSubtaskList.svelte";
   import TextInputWithEmoji from "$components/common/TextInputWithEmoji.svelte";
   import TextareaWithEmoji from "$components/common/TextareaWithEmoji.svelte";
@@ -32,7 +35,6 @@
   import LabelsPicker from "$components/common/LabelsPicker.svelte";
   import LabelIcon from "$components/common/LabelIcon.svelte";
   import SubtaskTagsPicker from "$components/common/SubtaskTagsPicker.svelte";
-
   export let todo;
   export let readonly = false;
 
@@ -45,6 +47,7 @@
   let newSubtaskTitle = "";
   let newSubtaskDeadline = "";
   let newSubtaskTags = [];
+  let newSubtaskIsReview = false;
   let showAddSubtask = false;
 
   $: progress = getTodoProgress(todo);
@@ -86,14 +89,49 @@
     deleteTodo(todo.id);
   }
 
-  function handleAddSubtask() {
+  async function handleAddSubtask() {
     if (newSubtaskTitle.trim()) {
       const deadline = todo.is_global ? newSubtaskDeadline || null : null;
       const tags = todo.is_global ? newSubtaskTags : [];
-      addSubtask(todo.id, newSubtaskTitle.trim(), deadline, tags);
+      await addSubtask(todo.id, newSubtaskTitle.trim(), deadline, tags);
+
+      // If marked for review, create Review 1 and update parent todo
+      if (todo.is_global && newSubtaskIsReview) {
+        try {
+          // 1. Mark the parent todo as a review task
+          if (!todo.is_review) {
+            await updateTodo(todo.id, {
+              title: todo.title,
+              description: todo.description,
+              due_date: todo.due_date,
+              priority: todo.priority,
+              labels: todo.labels,
+              is_review: true,
+            });
+          }
+
+          // 2. Create Review 1 (due tomorrow)
+          const reviewDate = new Date();
+          reviewDate.setDate(reviewDate.getDate() + 1);
+          const reviewDateStr = reviewDate.toISOString().split("T")[0];
+          await reviewsApi.create(
+            todo.id,
+            1,
+            reviewDateStr,
+            todo.priority || "none",
+          );
+
+          // 3. Refresh the reviews store so Reviews tab shows it
+          await loadReviews();
+        } catch (err) {
+          console.error("Failed to create review:", err);
+        }
+      }
+
       newSubtaskTitle = "";
       newSubtaskDeadline = "";
       newSubtaskTags = [];
+      newSubtaskIsReview = false;
       showAddSubtask = false;
     }
   }
@@ -126,6 +164,7 @@
       newSubtaskTitle = "";
       newSubtaskDeadline = "";
       newSubtaskTags = [];
+      newSubtaskIsReview = false;
     }
   }
 
@@ -386,6 +425,7 @@
         <DraggableSubtaskList
           subtasks="{todo.subtasks}"
           isGlobal="{todo.is_global}"
+          isReview="{todo.is_review}"
           {readonly}
           on:toggle="{handleSubtaskToggle}"
           on:delete="{handleSubtaskDelete}"
@@ -397,7 +437,7 @@
       <!-- Add Subtask -->
       {#if !readonly}
         {#if showAddSubtask}
-          <div class="mt-2 space-y-1.5">
+          <div class="mt-2 space-y-2">
             <div class="flex items-center gap-2">
               <TextInputWithEmoji
                 bind:value="{newSubtaskTitle}"
@@ -420,33 +460,48 @@
                   newSubtaskTitle = '';
                   newSubtaskDeadline = '';
                   newSubtaskTags = [];
+                  newSubtaskIsReview = false;
                 }}"
               >
                 <X size="{16}" />
               </button>
             </div>
-            <!-- Deadline and tags for global task subtasks -->
+            <!-- Deadline, tags, and review for global task subtasks -->
             {#if todo.is_global}
-              <div class="flex items-center gap-2 flex-wrap pl-1">
-                <Calendar size="{13}" class="text-gray-500" />
-                <input
-                  type="date"
-                  class="input text-xs py-0.5"
-                  bind:value="{newSubtaskDeadline}"
-                  title="Subtask deadline (optional)"
-                />
-                {#if newSubtaskDeadline}
-                  <button
-                    type="button"
-                    class="text-gray-500 hover:text-error"
-                    on:click="{() => (newSubtaskDeadline = '')}"
-                  >
-                    <X size="{12}" />
-                  </button>
-                {/if}
+              <div class="flex items-center gap-3 flex-wrap pl-1">
+                <div class="flex items-center gap-1.5">
+                  <Calendar size="{13}" class="text-gray-500" />
+                  <input
+                    type="date"
+                    class="input text-xs py-0.5"
+                    bind:value="{newSubtaskDeadline}"
+                    title="Subtask deadline (optional)"
+                  />
+                  {#if newSubtaskDeadline}
+                    <button
+                      type="button"
+                      class="text-gray-500 hover:text-error"
+                      on:click="{() => (newSubtaskDeadline = '')}"
+                    >
+                      <X size="{12}" />
+                    </button>
+                  {/if}
+                </div>
                 <SubtaskTagsPicker
                   bind:value="{newSubtaskTags}"
                 />
+                <label
+                  class="flex items-center gap-1.5 cursor-pointer"
+                  title="Mark for spaced-repetition review"
+                >
+                  <input
+                    type="checkbox"
+                    bind:checked="{newSubtaskIsReview}"
+                    class="rounded"
+                  />
+                  <BookOpen size="{13}" class="text-indigo-400" />
+                  <span class="text-xs text-gray-400">Review</span>
+                </label>
               </div>
             {/if}
           </div>

@@ -1,12 +1,13 @@
 <script>
   import { createEventDispatcher } from "svelte";
-  import { Check, Edit3, Trash2, X, Calendar, AlertCircle } from "lucide-svelte";
+  import { Check, Edit3, Trash2, X, Calendar, AlertCircle, BookOpen } from "lucide-svelte";
   import TextInputWithEmoji from "$components/common/TextInputWithEmoji.svelte";
   import { getSubtaskTagsByIds } from "$lib/stores/priorityStore.js";
 
   export let subtask;
   export let readonly = false;
   export let isGlobal = false;
+  export let isReview = false;
 
   const dispatch = createEventDispatcher();
 
@@ -130,6 +131,16 @@
             {tag.label}
           </span>
         {/each}
+
+        <!-- Review indicator for review tasks -->
+        {#if isReview}
+          <span
+            class="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-xs bg-indigo-500/20 text-indigo-400"
+          >
+            <BookOpen size="{10}" />
+            Review
+          </span>
+        {/if}
 
         <!-- Deadline badge for global subtasks -->
         {#if isGlobal && subtask.deadline}
