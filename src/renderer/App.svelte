@@ -71,8 +71,6 @@
         }
         if (dueToday.length > 0) {
           info(`📖 You have ${dueToday.length} review(s) due today!`, 8000);
-        } else if (overdue.length === 0 && dueReviews.length > 0) {
-          info(`📖 You have ${dueReviews.length} review(s) due today!`, 8000);
         }
       }
     } catch (err) {

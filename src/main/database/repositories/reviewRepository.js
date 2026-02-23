@@ -119,7 +119,6 @@ class ReviewRepository {
     this.statements.complete.run(id);
 
     // Auto-schedule next review based on confirmation date
-    const today = new Date().toISOString().split("T")[0];
     let nextReview = null;
 
     if (review.review_number === 1) {
