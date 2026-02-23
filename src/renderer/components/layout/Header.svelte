@@ -2,6 +2,7 @@
   import {
     Archive,
     BarChart3,
+    BookOpen,
     Calendar,
     Globe,
     Home,
@@ -66,6 +67,15 @@
       >
         <BarChart3 size="{18}" />
         <span>Statistics</span>
+      </button>
+      <button
+        class="btn btn-ghost flex items-center gap-2 {$currentPage === 'reviews'
+          ? 'bg-surface-lighter text-primary'
+          : ''}"
+        on:click="{() => navigateTo('reviews')}"
+      >
+        <BookOpen size="{18}" />
+        <span>Reviews</span>
       </button>
     </nav>
 

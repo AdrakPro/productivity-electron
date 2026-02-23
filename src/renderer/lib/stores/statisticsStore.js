@@ -6,6 +6,7 @@ export const statistics = writable({
   current_streak: 0,
   longest_streak: 0,
   last_activity_date: null,
+  total_reviews_completed: 0,
 });
 
 export const streakData = writable([]);

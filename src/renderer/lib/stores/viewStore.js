@@ -1,6 +1,6 @@
 import { writable, derived, get } from "svelte/store";
 
-// Current page: 'main' | 'archive' | 'statistics' | 'settings'
+// Current page: 'main' | 'archive' | 'statistics' | 'settings' | 'reviews'
 export const currentPage = writable("main");
 
 // View mode: 'daily' | 'global'

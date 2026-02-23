@@ -18,7 +18,8 @@ class StatisticsRepository {
         SET total_completed = @total_completed,
             current_streak = @current_streak,
             longest_streak = @longest_streak,
-            last_activity_date = @last_activity_date
+            last_activity_date = @last_activity_date,
+            total_reviews_completed = @total_reviews_completed
         WHERE id = 1
       `),
 
@@ -26,6 +27,12 @@ class StatisticsRepository {
         UPDATE statistics 
         SET total_completed = total_completed + 1,
             last_activity_date = @date
+        WHERE id = 1
+      `),
+
+      incrementReviewsCompleted: this.db.prepare(`
+        UPDATE statistics 
+        SET total_reviews_completed = total_reviews_completed + 1
         WHERE id = 1
       `),
 
@@ -61,6 +68,7 @@ class StatisticsRepository {
       current_streak: data.current_streak,
       longest_streak: data.longest_streak,
       last_activity_date: data.last_activity_date,
+      total_reviews_completed: data.total_reviews_completed ?? 0,
     });
     return this.get();
   }
@@ -113,7 +121,13 @@ class StatisticsRepository {
       current_streak: newStreak,
       longest_streak: longestStreak,
       last_activity_date: currentDate,
+      total_reviews_completed: stats.total_reviews_completed ?? 0,
     });
+  }
+
+  incrementReviewsCompleted() {
+    this.statements.incrementReviewsCompleted.run();
+    return this.get();
   }
 }
 

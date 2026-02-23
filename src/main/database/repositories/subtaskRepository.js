@@ -20,15 +20,17 @@ class SubtaskRepository {
       `),
 
       create: this.db.prepare(`
-        INSERT INTO subtasks (todo_id, title, sort_order, created_at)
-        VALUES (@todo_id, @title, @sort_order, datetime('now'))
+        INSERT INTO subtasks (todo_id, title, sort_order, deadline, tags, created_at)
+        VALUES (@todo_id, @title, @sort_order, @deadline, @tags, datetime('now'))
       `),
 
       update: this.db.prepare(`
         UPDATE subtasks 
         SET title = @title,
             is_completed = @is_completed,
-            completed_at = @completed_at
+            completed_at = @completed_at,
+            deadline = @deadline,
+            tags = @tags
         WHERE id = @id
       `),
 
@@ -57,14 +59,14 @@ class SubtaskRepository {
   }
 
   getByTodoId(todoId) {
-    return this.statements.getByTodoId.all(todoId);
+    return this.statements.getByTodoId.all(todoId).map((s) => this._parseSubtask(s));
   }
 
   getById(id) {
-    return this.statements.getById.get(id);
+    return this._parseSubtask(this.statements.getById.get(id));
   }
 
-  create(todoId, title) {
+  create(todoId, title, deadline, tags) {
     const maxOrder = this.statements.getMaxSortOrder.get(todoId);
     const sortOrder = (maxOrder?.max_order ?? -1) + 1;
 
@@ -72,9 +74,19 @@ class SubtaskRepository {
       todo_id: todoId,
       title,
       sort_order: sortOrder,
+      deadline: deadline || null,
+      tags: JSON.stringify(tags || []),
     });
 
-    return this.getById(result.lastInsertRowid);
+    return this._parseSubtask(this.getById(result.lastInsertRowid));
+  }
+
+  _parseSubtask(subtask) {
+    if (!subtask) return null;
+    return {
+      ...subtask,
+      tags: subtask.tags ? JSON.parse(subtask.tags) : [],
+    };
   }
 
   update(id, updates) {
@@ -96,14 +108,25 @@ class SubtaskRepository {
         ? null
         : existing.completed_at;
 
+    const existingTags = existing.tags
+      ? typeof existing.tags === "string"
+        ? JSON.parse(existing.tags)
+        : existing.tags
+      : [];
+
     this.statements.update.run({
       id,
       title: updates.title ?? existing.title,
       is_completed: isCompleted,
       completed_at: completedAt,
+      deadline:
+        updates.deadline !== undefined ? updates.deadline : existing.deadline,
+      tags: updates.tags
+        ? JSON.stringify(updates.tags)
+        : JSON.stringify(existingTags),
     });
 
-    return this.getById(id);
+    return this._parseSubtask(this.getById(id));
   }
 
   delete(id) {

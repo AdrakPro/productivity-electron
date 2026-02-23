@@ -7,6 +7,7 @@
   import ArchiveView from "./views/ArchiveView.svelte";
   import StatisticsView from "./views/StatisticsView.svelte";
   import SettingsView from "./views/SettingsView.svelte";
+  import ReviewView from "./views/ReviewView.svelte";
   import { currentPage, viewMode } from "$lib/stores/viewStore.js";
   import {
     archiveDailyTodos,
@@ -14,6 +15,9 @@
     loadTodos,
   } from "$lib/stores/todoStore.js";
   import { loadStatistics } from "$lib/stores/statisticsStore.js";
+  import { loadReviews } from "$lib/stores/reviewStore.js";
+  import { info, warning } from "$lib/stores/toastStore.js";
+  import { reviewsApi } from "$lib/services/api.js";
 
   let autoArchiveInterval = null;
   let lastCheckedDate = new Date().toISOString().split("T")[0];
@@ -54,6 +58,27 @@
 
     archiveOverdueGlobalTodos();
 
+    // Load reviews and show startup notifications
+    try {
+      const dueReviews = await reviewsApi.getDueToday();
+      if (dueReviews && dueReviews.length > 0) {
+        const today = new Date().toISOString().split("T")[0];
+        const overdue = dueReviews.filter((r) => r.review_date < today);
+        const dueToday = dueReviews.filter((r) => r.review_date === today);
+
+        if (overdue.length > 0) {
+          warning(`⚠️ You have ${overdue.length} overdue review(s)!`, 8000);
+        }
+        if (dueToday.length > 0) {
+          info(`📖 You have ${dueToday.length} review(s) due today!`, 8000);
+        }
+      }
+    } catch (err) {
+      console.error("Failed to check reviews:", err);
+    }
+
+    await loadReviews();
+
     autoArchiveInterval = setInterval(checkDayChange, 60 * 1000);
   });
 
@@ -80,6 +105,8 @@
         <ArchiveView />
       {:else if $currentPage === "statistics"}
         <StatisticsView />
+      {:else if $currentPage === "reviews"}
+        <ReviewView />
       {:else if $currentPage === "settings"}
         <SettingsView />
       {/if}

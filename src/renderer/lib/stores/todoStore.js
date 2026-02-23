@@ -5,6 +5,7 @@ import {
   subtasksApi,
   statisticsApi,
   streaksApi,
+  reviewsApi,
 } from "$lib/services/api.js";
 import { success, error as showError } from "./toastStore.js";
 import { statistics, streakData } from "./statisticsStore.js";
@@ -104,8 +105,22 @@ export async function addTodo(todoData) {
       ...todoData,
       priority: todoData.priority || "none",
       labels: todoData.labels || [],
+      is_review: todoData.is_review || false,
     });
     todos.update((list) => [...list, newTodo]);
+
+    // If marked for review, auto-create Review 1 (today + 1 day)
+    if (todoData.is_review) {
+      try {
+        const reviewDate = new Date();
+        reviewDate.setDate(reviewDate.getDate() + 1);
+        const reviewDateStr = reviewDate.toISOString().split("T")[0];
+        await reviewsApi.create(newTodo.id, 1, reviewDateStr, newTodo.priority);
+      } catch (reviewErr) {
+        console.error("Failed to create initial review:", reviewErr);
+      }
+    }
+
     success("Task created");
     return newTodo;
   } catch (err) {
@@ -272,11 +287,11 @@ function recalculateTodoCompletion(todo) {
   };
 }
 
-export async function addSubtask(todoId, title) {
+export async function addSubtask(todoId, title, deadline, tags) {
   error.set(null);
 
   try {
-    const newSubtask = await subtasksApi.create(todoId, title);
+    const newSubtask = await subtasksApi.create(todoId, title, deadline, tags);
 
     todos.update((list) =>
       list.map((todo) => {

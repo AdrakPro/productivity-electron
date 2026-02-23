@@ -14,8 +14,8 @@ contextBridge.exposeInMainWorld("api", {
   },
 
   subtasks: {
-    create: (todoId, title) =>
-      ipcRenderer.invoke("subtasks:create", todoId, title),
+    create: (todoId, title, deadline, tags) =>
+      ipcRenderer.invoke("subtasks:create", todoId, title, deadline, tags),
     update: (id, updates) => ipcRenderer.invoke("subtasks:update", id, updates),
     delete: (id) => ipcRenderer.invoke("subtasks:delete", id),
     reorder: (todoId, subtaskIds) =>
@@ -67,6 +67,20 @@ contextBridge.exposeInMainWorld("api", {
     quit: () => ipcRenderer.invoke("app:quit"),
     clearAllData: () => ipcRenderer.invoke("app:clearAllData"),
     getPaths: () => ipcRenderer.invoke("app:getPaths"),
+  },
+
+  reviews: {
+    getByTodoId: (todoId) =>
+      ipcRenderer.invoke("reviews:getByTodoId", todoId),
+    getByDate: (date) => ipcRenderer.invoke("reviews:getByDate", date),
+    getDueToday: () => ipcRenderer.invoke("reviews:getDueToday"),
+    getAllPending: () => ipcRenderer.invoke("reviews:getAllPending"),
+    complete: (id) => ipcRenderer.invoke("reviews:complete", id),
+    getAll: () => ipcRenderer.invoke("reviews:getAll"),
+    create: (todoId, reviewNumber, reviewDate, priority) =>
+      ipcRenderer.invoke("reviews:create", todoId, reviewNumber, reviewDate, priority),
+    updatePriority: (id, priority) =>
+      ipcRenderer.invoke("reviews:updatePriority", id, priority),
   },
 
   onNavigate: (callback) => {
