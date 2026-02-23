@@ -39,11 +39,15 @@
       "target": [
         {
           "target": "AppImage",
-          "arch": ["x64"]
+          "arch": [
+            "x64"
+          ]
         },
         {
           "target": "deb",
-          "arch": ["x64"]
+          "arch": [
+            "x64"
+          ]
         }
       ],
       "icon": "resources/icons",
@@ -81,22 +85,22 @@
     }
   },
   "devDependencies": {
-    "@electron/rebuild": "^3.6.0",
+    "@electron/rebuild": "^3.7.2",
     "@sveltejs/vite-plugin-svelte": "^3.1.0",
     "autoprefixer": "^10.4.18",
     "concurrently": "^8.2.2",
     "electron": "29.4.6",
     "electron-builder": "^24.13.3",
     "postcss": "^8.4.35",
+    "prettier": "^3.8.1",
+    "prettier-plugin-svelte": "^3.4.1",
     "svelte": "^4.2.12",
     "tailwindcss": "^3.4.1",
     "vite": "^5.1.6",
-    "wait-on": "^7.2.0",
-    "prettier": "^3.8.1",
-    "prettier-plugin-svelte": "^3.4.1"
+    "wait-on": "^7.2.0"
   },
   "dependencies": {
-    "better-sqlite3": "9.4.3",
+    "better-sqlite3": "^12.6.2",
     "date-fns": "^3.3.1",
     "lucide-svelte": "^0.344.0"
   }
