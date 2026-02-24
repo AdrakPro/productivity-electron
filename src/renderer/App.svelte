@@ -56,7 +56,7 @@
     await loadTodos();
     await loadStatistics();
 
-    archiveOverdueGlobalTodos();
+    // archiveOverdueGlobalTodos();
 
     // Load reviews and show startup notifications
     try {
@@ -79,14 +79,14 @@
 
     await loadReviews();
 
-    autoArchiveInterval = setInterval(checkDayChange, 60 * 1000);
+    // autoArchiveInterval = setInterval(checkDayChange, 60 * 1000);
   });
 
-  onDestroy(() => {
-    if (autoArchiveInterval) {
-      clearInterval(autoArchiveInterval);
-    }
-  });
+  // onDestroy(() => {
+  //   if (autoArchiveInterval) {
+  //     clearInterval(autoArchiveInterval);
+  //   }
+  // });
 </script>
 
 <!-- Listen for newTask event -->
@@ -101,8 +101,8 @@
     <main class="flex-1 overflow-auto p-4">
       {#if $currentPage === "main"}
         <MainView bind:this={mainViewRef} />
-      {:else if $currentPage === "archive"}
-        <ArchiveView />
+      <!--{:else if $currentPage === "archive"}-->
+<!--        <ArchiveView />-->
       {:else if $currentPage === "statistics"}
         <StatisticsView />
       {:else if $currentPage === "reviews"}

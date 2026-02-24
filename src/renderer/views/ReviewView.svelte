@@ -111,7 +111,7 @@
                         review.review_number
                       ] || 'bg-gray-500'}"
                     >
-                      {reviewLabels[review.review_number] || "Review"}
+                      {reviewLabels[Number(review.review_number)] || "Review"}
                     </span>
                     <div class="min-w-0">
                       <p class="font-medium text-on-surface truncate">
@@ -124,10 +124,9 @@
                     </div>
                   </div>
                   <div class="flex items-center gap-2 flex-shrink-0">
-                    <PriorityPicker
-                      value="{review.priority}"
-                      on:change="{(e) => handlePriorityChange(review.id, e)}"
-                    />
+                    <span class="px-2 py-0.5 rounded text-xs {getPriorityById(review.priority)?.bgLight} {getPriorityById(review.priority)?.textColor}">
+                      {getPriorityById(review.priority)?.label}
+                    </span>
                     <button
                       class="btn btn-primary btn-sm flex items-center gap-1"
                       on:click="{() => handleComplete(review.id)}"
@@ -164,13 +163,13 @@
               >
                 <div class="flex items-start justify-between gap-3">
                   <div class="flex items-start gap-3 flex-1 min-w-0">
-                    <span
-                      class="px-2 py-0.5 rounded text-xs text-white flex-shrink-0 {reviewColors[
-                        review.review_number
-                      ] || 'bg-gray-500'}"
-                    >
-                      {reviewLabels[review.review_number] || "Review"}
-                    </span>
+                      <span
+                        class="px-2 py-0.5 rounded text-xs text-white flex-shrink-0 {reviewColors[
+                          review.review_number
+                        ] || 'bg-gray-500'}"
+                      >
+                        {reviewLabels[review.review_number] || "Review"}
+                      </span>
                     <div class="min-w-0">
                       <p class="font-medium text-on-surface truncate">
                         {review.todo_title}

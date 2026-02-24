@@ -49,14 +49,23 @@
         <Home size="{18}" />
         <span>Home</span>
       </button>
+<!--      <button-->
+<!--        class="btn btn-ghost flex items-center gap-2 {$currentPage === 'archive'-->
+<!--          ? 'bg-surface-lighter text-primary'-->
+<!--          : ''}"-->
+<!--        on:click="{() => navigateTo('archive')}"-->
+<!--      >-->
+<!--        <Archive size="{18}" />-->
+<!--        <span>Archive</span>-->
+<!--      </button>-->
       <button
-        class="btn btn-ghost flex items-center gap-2 {$currentPage === 'archive'
+        class="btn btn-ghost flex items-center gap-2 {$currentPage === 'reviews'
           ? 'bg-surface-lighter text-primary'
           : ''}"
-        on:click="{() => navigateTo('archive')}"
+        on:click="{() => navigateTo('reviews')}"
       >
-        <Archive size="{18}" />
-        <span>Archive</span>
+        <BookOpen size="{18}" />
+        <span>Reviews</span>
       </button>
       <button
         class="btn btn-ghost flex items-center gap-2 {$currentPage ===
@@ -67,15 +76,6 @@
       >
         <BarChart3 size="{18}" />
         <span>Statistics</span>
-      </button>
-      <button
-        class="btn btn-ghost flex items-center gap-2 {$currentPage === 'reviews'
-          ? 'bg-surface-lighter text-primary'
-          : ''}"
-        on:click="{() => navigateTo('reviews')}"
-      >
-        <BookOpen size="{18}" />
-        <span>Reviews</span>
       </button>
     </nav>
 

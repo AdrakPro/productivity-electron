@@ -476,6 +476,7 @@
                     class="input text-xs py-0.5"
                     bind:value="{newSubtaskDeadline}"
                     title="Subtask deadline (optional)"
+                    disabled="{newSubtaskIsReview}"
                   />
                   {#if newSubtaskDeadline}
                     <button
