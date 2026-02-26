@@ -128,6 +128,37 @@ function runMigrations(db) {
         );
         `,
     },
+    {
+      name: "011_create_reviews_table",
+      sql: `
+    CREATE TABLE IF NOT EXISTS reviews (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      todo_id INTEGER NOT NULL,
+      subtask_id INTEGER,
+      subtask_title TEXT,
+      round INTEGER DEFAULT 1,
+      review_date TEXT,
+      priority TEXT DEFAULT 'none',
+      is_completed INTEGER DEFAULT 0,
+      completed_at TEXT,
+      created_at TEXT DEFAULT (datetime('now')),
+      updated_at TEXT DEFAULT (datetime('now')),
+      FOREIGN KEY (todo_id) REFERENCES todos(id) ON DELETE CASCADE,
+      FOREIGN KEY (subtask_id) REFERENCES subtasks(id) ON DELETE CASCADE
+    );
+    
+    CREATE INDEX IF NOT EXISTS idx_reviews_todo_id ON reviews(todo_id);
+    CREATE INDEX IF NOT EXISTS idx_reviews_subtask_id ON reviews(subtask_id);
+    CREATE INDEX IF NOT EXISTS idx_reviews_review_date ON reviews(review_date);
+  `,
+    },
+
+    {
+      name: "012_add_review_number_to_reviews",
+      sql: `
+    ALTER TABLE reviews ADD COLUMN review_number INTEGER DEFAULT 1;
+  `,
+    },
   ];
 
   // Check which migrations have been executed

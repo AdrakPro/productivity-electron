@@ -5,8 +5,12 @@ import {
   subtasksApi,
   statisticsApi,
   streaksApi,
+  reviewsApi,
+  templatesApi,
 } from "$lib/services/api.js";
 import { success, error as showError } from "./toastStore.js";
+import { loadReviews } from "$lib/stores/reviewStore";
+import { loadTemplates } from "$lib/stores/templateStore";
 
 // All todos from database (with subtasks embedded)
 export const todos = writable([]);
@@ -415,10 +419,14 @@ export async function exportTodos() {
   // Get current statistics and streaks
   let stats = null;
   let streaks = [];
+  let reviews = [];
+  let templates = [];
 
   try {
     stats = await statisticsApi.get();
     streaks = await streaksApi.get();
+    reviews = await reviewsApi.getAll();
+    templates = await templatesApi.getAll();
   } catch (err) {
     console.error("Failed to get statistics for export:", err);
   }
@@ -429,6 +437,8 @@ export async function exportTodos() {
     todos: $todos,
     statistics: stats,
     streaks: streaks,
+    reviews: reviews,
+    templates: templates,
   };
 
   const blob = new Blob([JSON.stringify(data, null, 2)], {
@@ -444,7 +454,9 @@ export async function exportTodos() {
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
 
-  success("Data exported successfully (includes statistics)");
+  success(
+    "Data exported successfully (includes statistics, reviews, templates)",
+  );
 }
 
 export async function importTodos(file) {
@@ -462,52 +474,96 @@ export async function importTodos(file) {
         let importedTodos = 0;
         let importedStats = false;
         let importedStreaks = 0;
+        let importedReviews = 0;
+        let importedTemplates = 0;
 
-        // Import todos
-        for (const todo of data.todos) {
+        // For ID mapping
+        const todoIdMap = {};
+        const subtaskIdMap = {};
+
+        // Import todos & subtasks and build ID mapping
+        for (const oldTodo of data.todos) {
           try {
             const newTodo = await todosApi.create({
-              title: todo.title,
-              description: todo.description,
-              due_date: todo.due_date,
-              is_global: todo.is_global,
-              priority: todo.priority || "none",
-              labels: todo.labels || [],
+              title: oldTodo.title,
+              description: oldTodo.description,
+              due_date: oldTodo.due_date,
+              is_global: oldTodo.is_global,
+              priority: oldTodo.priority || "none",
+              labels: oldTodo.labels || [],
             });
+            todoIdMap[oldTodo.id] = newTodo.id;
 
             // Import subtasks
-            if (todo.subtasks && todo.subtasks.length > 0) {
-              for (const subtask of todo.subtasks) {
-                await subtasksApi.create(
+            if (oldTodo.subtasks && oldTodo.subtasks.length > 0) {
+              for (const oldSubtask of oldTodo.subtasks) {
+                const newSubtask = await subtasksApi.create(
                   newTodo.id,
-                  subtask.title,
-                  subtask.deadline || null,
-                  subtask.tags || [],
+                  oldSubtask.title,
+                  oldSubtask.deadline || null,
+                  oldSubtask.tags || [],
+                  oldSubtask.is_review || false,
                 );
-                // Mark as completed if it was completed
-                if (subtask.is_completed) {
-                  const createdSubtasks =
-                    (await todosApi.getAll()).find((t) => t.id === newTodo.id)
-                      ?.subtasks || [];
-                  const lastSubtask =
-                    createdSubtasks[createdSubtasks.length - 1];
-                  if (lastSubtask) {
-                    await subtasksApi.update(lastSubtask.id, {
-                      is_completed: true,
-                    });
-                  }
+                subtaskIdMap[oldSubtask.id] = newSubtask.id;
+                // Mark as completed if necessary
+                if (oldSubtask.is_completed) {
+                  await subtasksApi.update(newSubtask.id, {
+                    is_completed: true,
+                  });
                 }
               }
             }
 
             // If todo was archived, archive it
-            if (todo.is_archived) {
+            if (oldTodo.is_archived) {
               await todosApi.archive(newTodo.id);
             }
 
             importedTodos++;
           } catch (err) {
             console.error("Failed to import todo:", err);
+          }
+        }
+
+        // Import reviews using ID mapping
+        if (data.reviews && Array.isArray(data.reviews)) {
+          for (const oldReview of data.reviews) {
+            try {
+              const mappedTodoId = todoIdMap[oldReview.todo_id];
+              const mappedSubtaskId = oldReview.subtask_id
+                ? subtaskIdMap[oldReview.subtask_id]
+                : null;
+              if (!mappedTodoId) {
+                console.warn(
+                  "Skipping review with unmapped todo_id:",
+                  oldReview,
+                );
+                continue;
+              }
+              await reviewsApi.create(
+                mappedTodoId,
+                mappedSubtaskId,
+                oldReview.subtask_title || "",
+                oldReview.round || oldReview.review_number || 1,
+                oldReview.review_date,
+                oldReview.priority || "none",
+              );
+              importedReviews++;
+            } catch (err) {
+              console.error("Failed to import review:", err);
+            }
+          }
+        }
+
+        // Import templates
+        if (data.templates && Array.isArray(data.templates)) {
+          for (const template of data.templates) {
+            try {
+              await templatesApi.create(template);
+              importedTemplates++;
+            } catch (err) {
+              console.error("Failed to import template:", err);
+            }
           }
         }
 
@@ -541,7 +597,6 @@ export async function importTodos(file) {
         if (data.streaks && Array.isArray(data.streaks)) {
           for (const streak of data.streaks) {
             try {
-              // Record each streak day
               if (streak.date && streak.completed_count > 0) {
                 for (let i = 0; i < streak.completed_count; i++) {
                   await streaksApi.recordCompletion(streak.date);
@@ -554,8 +609,10 @@ export async function importTodos(file) {
           }
         }
 
-        // Reload all data
+        // Reload all data/stores
         await loadTodos();
+        await loadReviews();
+        await loadTemplates();
 
         // Reload statistics
         const { loadStatistics } = await import("./statisticsStore.js");
@@ -563,16 +620,16 @@ export async function importTodos(file) {
 
         // Build success message
         let message = `Imported ${importedTodos} tasks`;
-        if (importedStats) {
-          message += ", statistics";
-        }
-        if (importedStreaks > 0) {
-          message += `, ${importedStreaks} streak days`;
-        }
+        if (importedReviews) message += `, ${importedReviews} reviews`;
+        if (importedTemplates) message += `, ${importedTemplates} templates`;
+        if (importedStats) message += ", statistics";
+        if (importedStreaks > 0) message += `, ${importedStreaks} streak days`;
 
         success(message);
         resolve({
           todos: importedTodos,
+          reviews: importedReviews,
+          templates: importedTemplates,
           stats: importedStats,
           streaks: importedStreaks,
         });
