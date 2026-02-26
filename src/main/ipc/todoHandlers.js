@@ -16,6 +16,7 @@ function registerTodoHandlers(todoRepo, subtaskRepo, statisticsRepo) {
         subtasks: subtaskRepo.getByTodoId(todo.id).map((s) => ({
           ...s,
           is_completed: Boolean(s.is_completed),
+          is_review: Boolean(s.is_review),
         })),
       }));
     } catch (error) {

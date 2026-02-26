@@ -14,8 +14,15 @@ contextBridge.exposeInMainWorld("api", {
   },
 
   subtasks: {
-    create: (todoId, title, deadline, tags) =>
-      ipcRenderer.invoke("subtasks:create", todoId, title, deadline, tags),
+    create: (todoId, title, deadline, tags, is_review) =>
+      ipcRenderer.invoke(
+        "subtasks:create",
+        todoId,
+        title,
+        deadline,
+        tags,
+        is_review,
+      ),
     update: (id, updates) => ipcRenderer.invoke("subtasks:update", id, updates),
     delete: (id) => ipcRenderer.invoke("subtasks:delete", id),
     reorder: (todoId, subtaskIds) =>
@@ -70,17 +77,33 @@ contextBridge.exposeInMainWorld("api", {
   },
 
   reviews: {
-    getByTodoId: (todoId) =>
-      ipcRenderer.invoke("reviews:getByTodoId", todoId),
+    getByTodoId: (todoId) => ipcRenderer.invoke("reviews:getByTodoId", todoId),
     getByDate: (date) => ipcRenderer.invoke("reviews:getByDate", date),
     getDueToday: () => ipcRenderer.invoke("reviews:getDueToday"),
     getAllPending: () => ipcRenderer.invoke("reviews:getAllPending"),
     complete: (id) => ipcRenderer.invoke("reviews:complete", id),
     getAll: () => ipcRenderer.invoke("reviews:getAll"),
-    create: (todoId, reviewNumber, reviewDate, priority) =>
-      ipcRenderer.invoke("reviews:create", todoId, reviewNumber, reviewDate, priority),
+    create: (
+      todoId,
+      subtaskId,
+      subtask_title,
+      reviewNumber,
+      reviewDate,
+      priority,
+    ) =>
+      ipcRenderer.invoke(
+        "reviews:create",
+        todoId,
+        subtaskId,
+        subtask_title,
+        reviewNumber,
+        reviewDate,
+        priority,
+      ),
     updatePriority: (id, priority) =>
       ipcRenderer.invoke("reviews:updatePriority", id, priority),
+    deleteBySubtaskId: (subtaskId) =>
+      ipcRenderer.invoke("reviews:deleteBySubtaskId", subtaskId),
   },
 
   onNavigate: (callback) => {
@@ -91,5 +114,14 @@ contextBridge.exposeInMainWorld("api", {
 
   removeNavigateListener: () => {
     ipcRenderer.removeAllListeners("navigate");
+  },
+
+  templates: {
+    getAll: () => ipcRenderer.invoke("templates:getAll"),
+    getById: (id) => ipcRenderer.invoke("templates:getById", id),
+    create: (template) => ipcRenderer.invoke("templates:create", template),
+    update: (id, template) =>
+      ipcRenderer.invoke("templates:update", id, template),
+    delete: (id) => ipcRenderer.invoke("templates:delete", id),
   },
 });

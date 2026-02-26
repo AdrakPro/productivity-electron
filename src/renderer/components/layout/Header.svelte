@@ -1,13 +1,5 @@
 <script>
-  import {
-    Archive,
-    BarChart3,
-    BookOpen,
-    Calendar,
-    Globe,
-    Home,
-    Settings,
-  } from "lucide-svelte";
+  import { BarChart3, BookOpen, Calendar, Globe, Home, Settings } from "lucide-svelte";
   import { currentPage, viewMode } from "$lib/stores/viewStore.js";
 
   function navigateTo(page) {
@@ -49,15 +41,15 @@
         <Home size="{18}" />
         <span>Home</span>
       </button>
-<!--      <button-->
-<!--        class="btn btn-ghost flex items-center gap-2 {$currentPage === 'archive'-->
-<!--          ? 'bg-surface-lighter text-primary'-->
-<!--          : ''}"-->
-<!--        on:click="{() => navigateTo('archive')}"-->
-<!--      >-->
-<!--        <Archive size="{18}" />-->
-<!--        <span>Archive</span>-->
-<!--      </button>-->
+      <!--      <button-->
+      <!--        class="btn btn-ghost flex items-center gap-2 {$currentPage === 'archive'-->
+      <!--          ? 'bg-surface-lighter text-primary'-->
+      <!--          : ''}"-->
+      <!--        on:click="{() => navigateTo('archive')}"-->
+      <!--      >-->
+      <!--        <Archive size="{18}" />-->
+      <!--        <span>Archive</span>-->
+      <!--      </button>-->
       <button
         class="btn btn-ghost flex items-center gap-2 {$currentPage === 'reviews'
           ? 'bg-surface-lighter text-primary'
@@ -66,6 +58,16 @@
       >
         <BookOpen size="{18}" />
         <span>Reviews</span>
+      </button>
+      <button
+        class="btn btn-ghost flex items-center gap-2 {$currentPage ===
+        'templates'
+          ? 'bg-surface-lighter text-primary'
+          : ''}"
+        on:click="{() => navigateTo('templates')}"
+      >
+        <BarChart3 size="{18}" />
+        <span>Template</span>
       </button>
       <button
         class="btn btn-ghost flex items-center gap-2 {$currentPage ===
@@ -79,7 +81,6 @@
       </button>
     </nav>
 
-    <!-- Right: Settings -->
     <div class="flex-1 flex justify-end">
       <button
         class="btn btn-ghost flex items-center gap-2 px-3 py-2 {$currentPage ===

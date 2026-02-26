@@ -20,6 +20,10 @@ const {
 const {
   ReviewRepository,
 } = require("../database/repositories/reviewRepository.js");
+const {
+  TemplateRepository,
+} = require("../database/repositories/templateRepository.js");
+const { registerTemplateHandlers } = require("./templateHandlers");
 
 /**
  * Register all IPC handlers
@@ -30,6 +34,7 @@ function registerAllHandlers(db) {
   const statisticsRepo = new StatisticsRepository(db);
   const settingsRepo = new SettingsRepository(db);
   const reviewRepo = new ReviewRepository(db);
+  const templateRepo = new TemplateRepository(db);
 
   registerTodoHandlers(todoRepo, subtaskRepo, statisticsRepo);
   registerSubtaskHandlers(subtaskRepo, todoRepo);
@@ -37,6 +42,7 @@ function registerAllHandlers(db) {
   registerFileHandlers(settingsRepo);
   registerAppHandlers(settingsRepo);
   registerReviewHandlers(reviewRepo, statisticsRepo);
+  registerTemplateHandlers(templateRepo);
 
   console.log("All IPC handlers registered");
 }

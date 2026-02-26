@@ -4,12 +4,13 @@ const { ipcMain } = require("electron");
  * Register subtask-related IPC handlers
  */
 function registerSubtaskHandlers(subtaskRepo, todoRepo) {
-  ipcMain.handle("subtasks:create", async (event, todoId, title, deadline, tags) => {
+  ipcMain.handle("subtasks:create", async (event, todoId, title, deadline, tags, is_review = false) => {
     try {
-      const subtask = subtaskRepo.create(todoId, title, deadline, tags);
+      const subtask = subtaskRepo.create(todoId, title, deadline, tags, is_review);
       return {
         ...subtask,
         is_completed: Boolean(subtask.is_completed),
+        is_review: Boolean(subtask.is_review),
       };
     } catch (error) {
       console.error("Error creating subtask:", error);

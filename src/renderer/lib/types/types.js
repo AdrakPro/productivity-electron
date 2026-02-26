@@ -65,4 +65,15 @@
  * @property {FileNode[]} [children]
  */
 
+/**
+ * @typedef {Object} Template
+ * @property {number} id
+ * @property {string} name
+ * @property {string} description
+ * @property {Array<{title:string,description:string,priority:string,labels:string[]}>} tasks
+ * @property {string} created_at
+ * @property {string} updated_at
+ */
+
+
 export {};

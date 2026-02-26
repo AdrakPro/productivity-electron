@@ -115,8 +115,8 @@ export const todosApi = {
 
 // Subtask API
 export const subtasksApi = {
-  async create(todoId, title, deadline, tags) {
-    return api.subtasks.create(todoId, title, deadline, tags);
+  async create(todoId, title, deadline, tags, is_review = false) {
+    return api.subtasks.create(todoId, title, deadline, tags, is_review);
   },
 
   async update(id, updates) {
@@ -270,11 +270,33 @@ export const reviewsApi = {
     return api.reviews.getAll();
   },
 
-  async create(todoId, reviewNumber, reviewDate, priority) {
-    return api.reviews.create(todoId, reviewNumber, reviewDate, priority);
+  async create(todoId, subtaskId, subtaskTitle, reviewNumber, reviewDate, priority) {
+    return api.reviews.create(todoId, subtaskId, subtaskTitle, reviewNumber, reviewDate, priority);
+  },
+
+  async deleteBySubtaskId(subtaskId) {
+    return api.reviews.deleteBySubtaskId(subtaskId);
   },
 
   async updatePriority(id, priority) {
     return api.reviews.updatePriority(id, priority);
+  },
+};
+
+export const templatesApi = {
+  async getAll() {
+    return api.templates.getAll();
+  },
+  async getById(id) {
+    return api.templates.getById(id);
+  },
+  async create(template) {
+    return api.templates.create(template);
+  },
+  async update(id, template) {
+    return api.templates.update(id, template);
+  },
+  async delete(id) {
+    return api.templates.delete(id);
   },
 };

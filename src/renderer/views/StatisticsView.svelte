@@ -89,14 +89,8 @@
       iconColor="text-primary"
     />
     <StatsCard
-      title="Daily Tasks"
-      value="{dailyTodos}"
-      icon="{Calendar}"
-      iconColor="text-blue-400"
-    />
-    <StatsCard
-      title="Global Tasks"
-      value="{globalTodos}"
+      title="Completed Tasks"
+      value="{dailyTodos + globalTodos}"
       icon="{BarChart3}"
       iconColor="text-purple-400"
     />

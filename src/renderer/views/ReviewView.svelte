@@ -115,7 +115,7 @@
                     </span>
                     <div class="min-w-0">
                       <p class="font-medium text-on-surface truncate">
-                        {review.todo_title}
+                        {review.subtask_title}
                       </p>
                       <p class="text-xs text-error mt-0.5 flex items-center gap-1">
                         <AlertCircle size="{12}" />
@@ -172,7 +172,7 @@
                       </span>
                     <div class="min-w-0">
                       <p class="font-medium text-on-surface truncate">
-                        {review.todo_title}
+                        {review.subtask_title}
                       </p>
                       <p class="text-xs text-primary mt-0.5">Due today</p>
                     </div>
@@ -225,7 +225,7 @@
                         </span>
                         <div class="min-w-0">
                           <p class="font-medium text-on-surface truncate">
-                            {review.todo_title}
+                            {review.subtask_title}
                           </p>
                           <p class="text-xs text-gray-500 mt-0.5">
                             {formatDate(review.review_date)}

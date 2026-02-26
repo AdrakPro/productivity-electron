@@ -20,13 +20,14 @@ class SubtaskRepository {
       `),
 
       create: this.db.prepare(`
-        INSERT INTO subtasks (todo_id, title, sort_order, deadline, tags, created_at)
-        VALUES (@todo_id, @title, @sort_order, @deadline, @tags, datetime('now'))
+        INSERT INTO subtasks (todo_id, title, is_review, sort_order, deadline, tags, created_at)
+        VALUES (@todo_id, @title, @is_review, @sort_order, @deadline, @tags, datetime('now'))
       `),
 
       update: this.db.prepare(`
-        UPDATE subtasks 
+        UPDATE subtasks
         SET title = @title,
+            is_review = @is_review,
             is_completed = @is_completed,
             completed_at = @completed_at,
             deadline = @deadline,
@@ -68,13 +69,14 @@ class SubtaskRepository {
     return this._parseSubtask(this.statements.getById.get(id));
   }
 
-  create(todoId, title, deadline, tags) {
+  create(todoId, title, deadline, tags, is_review = false) {
     const maxOrder = this.statements.getMaxSortOrder.get(todoId);
     const sortOrder = (maxOrder?.max_order ?? -1) + 1;
 
     const result = this.statements.create.run({
       todo_id: todoId,
       title,
+      is_review: is_review ? 1 : 0,
       sort_order: sortOrder,
       deadline: deadline || null,
       tags: JSON.stringify(tags || []),
@@ -88,6 +90,7 @@ class SubtaskRepository {
     return {
       ...subtask,
       tags: subtask.tags ? JSON.parse(subtask.tags) : [],
+      is_review: !!subtask.is_review,
     };
   }
 
@@ -115,6 +118,14 @@ class SubtaskRepository {
     this.statements.update.run({
       id,
       title: updates.title ?? existing.title,
+      is_review:
+        updates.is_review !== undefined
+          ? updates.is_review
+            ? 1
+            : 0
+          : existing.is_review
+            ? 1
+            : 0,
       is_completed: isCompleted,
       completed_at: completedAt,
       deadline:

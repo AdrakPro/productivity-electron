@@ -52,8 +52,8 @@ class TodoRepository {
       `),
 
       create: this.db.prepare(`
-        INSERT INTO todos (title, description, due_date, is_global, is_review, priority, labels, created_at, updated_at)
-        VALUES (@title, @description, @due_date, @is_global, @is_review, @priority, @labels, datetime('now'), datetime('now'))
+        INSERT INTO todos (title, description, due_date, is_global, priority, labels, created_at, updated_at)
+        VALUES (@title, @description, @due_date, @is_global, @priority, @labels, datetime('now'), datetime('now'))
       `),
 
       update: this.db.prepare(`
@@ -62,7 +62,6 @@ class TodoRepository {
             description = @description, 
             due_date = @due_date,
             is_global = @is_global,
-            is_review = @is_review,
             is_completed = @is_completed,
             completed_at = @completed_at,
             priority = @priority,
@@ -99,7 +98,6 @@ class TodoRepository {
     return {
       ...todo,
       labels: todo.labels ? JSON.parse(todo.labels) : [],
-      is_review: Boolean(todo.is_review),
     };
   }
 
@@ -129,7 +127,6 @@ class TodoRepository {
       description: todo.description || null,
       due_date: todo.due_date || null,
       is_global: todo.is_global ? 1 : 0,
-      is_review: todo.is_review ? 1 : 0,
       priority: todo.priority || "none",
       labels: JSON.stringify(todo.labels || []),
     });
@@ -154,14 +151,6 @@ class TodoRepository {
             ? 1
             : 0
           : existing.is_global,
-      is_review:
-        updates.is_review !== undefined
-          ? updates.is_review
-            ? 1
-            : 0
-          : existing.is_review
-            ? 1
-            : 0,
       is_completed:
         updates.is_completed !== undefined
           ? updates.is_completed

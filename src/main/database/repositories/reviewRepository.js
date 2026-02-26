@@ -17,6 +17,14 @@ class ReviewRepository {
         ORDER BY r.review_number ASC
       `),
 
+      getBySubtaskId: this.db.prepare(`
+        SELECT r.*, t.title as todo_title
+        FROM reviews r
+               JOIN todos t ON r.todo_id = t.id
+        WHERE r.subtask_id = ?
+        ORDER BY r.review_number ASC
+      `),
+
       getById: this.db.prepare(`
         SELECT r.*, t.title as todo_title
         FROM reviews r
@@ -56,8 +64,12 @@ class ReviewRepository {
       `),
 
       create: this.db.prepare(`
-        INSERT INTO reviews (todo_id, review_number, review_date, priority, created_at)
-        VALUES (@todo_id, @review_number, @review_date, @priority, datetime('now'))
+        INSERT INTO reviews (todo_id, subtask_id, review_number, review_date, priority, created_at)
+        VALUES (@todo_id, @subtask_id, @review_number, @review_date, @priority, datetime('now'))
+      `),
+
+      deleteBySubtaskId: this.db.prepare(`
+        DELETE FROM reviews WHERE subtask_id = ?
       `),
 
       complete: this.db.prepare(`
@@ -102,13 +114,21 @@ class ReviewRepository {
     return this.statements.getAll.all();
   }
 
-  create(todoId, reviewNumber, reviewDate, priority) {
-    const result = this.statements.create.run({
-      todo_id: todoId,
-      review_number: reviewNumber,
-      review_date: reviewDate,
-      priority: priority || "none",
-    });
+  create(todoId, subtaskId, subtaskTitle, reviewNumber, reviewDate, priority) {
+    const result = this.db
+      .prepare(
+        `INSERT INTO reviews 
+      (todo_id, subtask_id, subtask_title, review_number, review_date, priority, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, datetime('now'))`,
+      )
+      .run(
+        todoId,
+        subtaskId,
+        subtaskTitle,
+        reviewNumber,
+        reviewDate,
+        priority || "none",
+      );
     return this.getById(result.lastInsertRowid);
   }
 
@@ -125,22 +145,12 @@ class ReviewRepository {
       const nextDate = new Date();
       nextDate.setDate(nextDate.getDate() + 7);
       const nextDateStr = nextDate.toISOString().split("T")[0];
-      nextReview = this.create(
-        review.todo_id,
-        2,
-        nextDateStr,
-        review.priority,
-      );
+      nextReview = this.create(review.todo_id, 2, nextDateStr, review.priority);
     } else if (review.review_number === 2) {
       const nextDate = new Date();
       nextDate.setDate(nextDate.getDate() + 14);
       const nextDateStr = nextDate.toISOString().split("T")[0];
-      nextReview = this.create(
-        review.todo_id,
-        3,
-        nextDateStr,
-        review.priority,
-      );
+      nextReview = this.create(review.todo_id, 3, nextDateStr, review.priority);
     }
     // review_number === 3: no more reviews
 
@@ -154,6 +164,10 @@ class ReviewRepository {
 
   getCompletedCount() {
     return this.statements.getCompletedCount.get().count;
+  }
+
+  deleteBySubtaskId(subtaskId) {
+    return this.statements.deleteBySubtaskId.run(subtaskId);
   }
 }
 

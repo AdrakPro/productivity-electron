@@ -18,6 +18,7 @@
   import { loadReviews } from "$lib/stores/reviewStore.js";
   import { info, warning } from "$lib/stores/toastStore.js";
   import { reviewsApi } from "$lib/services/api.js";
+  import TemplatesView from "$views/TemplatesView.svelte";
 
   let autoArchiveInterval = null;
   let lastCheckedDate = new Date().toISOString().split("T")[0];
@@ -101,8 +102,8 @@
     <main class="flex-1 overflow-auto p-4">
       {#if $currentPage === "main"}
         <MainView bind:this={mainViewRef} />
-      <!--{:else if $currentPage === "archive"}-->
-<!--        <ArchiveView />-->
+      {:else if $currentPage === "templates"}
+        <TemplatesView />
       {:else if $currentPage === "statistics"}
         <StatisticsView />
       {:else if $currentPage === "reviews"}

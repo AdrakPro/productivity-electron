@@ -60,20 +60,39 @@ function registerReviewHandlers(reviewRepo, statisticsRepo) {
     }
   });
 
-  ipcMain.handle("reviews:create", async (event, todoId, reviewNumber, reviewDate, priority) => {
-    try {
-      return reviewRepo.create(todoId, reviewNumber, reviewDate, priority);
-    } catch (error) {
-      console.error("Error creating review:", error);
-      throw error;
-    }
-  });
+  ipcMain.handle(
+    "reviews:create",
+    async (event, todoId, subtaskId, subtask_title, reviewNumber, reviewDate, priority) => {
+      try {
+        return reviewRepo.create(
+          todoId,
+          subtaskId,
+          subtask_title,
+          reviewNumber,
+          reviewDate,
+          priority,
+        );
+      } catch (error) {
+        console.error("Error creating review:", error);
+        throw error;
+      }
+    },
+  );
 
   ipcMain.handle("reviews:updatePriority", async (event, id, priority) => {
     try {
       return reviewRepo.updatePriority(id, priority);
     } catch (error) {
       console.error("Error updating review priority:", error);
+      throw error;
+    }
+  });
+
+  ipcMain.handle("reviews:deleteBySubtaskId", async (event, subtaskId) => {
+    try {
+      return reviewRepo.deleteBySubtaskId(subtaskId);
+    } catch (error) {
+      console.error("Error deleting reviews by subtask id:", error);
       throw error;
     }
   });

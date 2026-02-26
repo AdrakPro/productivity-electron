@@ -13,6 +13,7 @@
 
   let isEditing = false;
   let editTitle = subtask.title;
+  let editIsReview = subtask.is_review ?? false;
 
   $: tags = getSubtaskTagsByIds(subtask.tags || []);
 
@@ -57,6 +58,7 @@
       dispatch("edit", {
         subtaskId: subtask.id,
         title: editTitle.trim(),
+        is_review: editIsReview,
       });
     }
     isEditing = false;
@@ -111,6 +113,11 @@
       >
         <X size="{14}" class="text-gray-500" />
       </button>
+      <label class="flex items-center gap-1.5 cursor-pointer" title="Mark for spaced-repetition review">
+        <input type="checkbox" bind:checked={editIsReview} class="rounded" />
+        <BookOpen size={13} class="text-indigo-400" />
+        <span class="text-xs text-gray-400">Review</span>
+      </label>
     </div>
   {:else}
     <div class="flex-1 min-w-0">
@@ -133,11 +140,11 @@
         {/each}
 
         <!-- Review indicator for review tasks -->
-        {#if isReview}
+        {#if subtask.is_review}
           <span
             class="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-xs bg-indigo-500/20 text-indigo-400"
           >
-            <BookOpen size="{10}" />
+            <BookOpen size="{13}" />
             Review
           </span>
         {/if}

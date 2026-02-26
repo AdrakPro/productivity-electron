@@ -277,11 +277,24 @@ function recalculateTodoCompletion(todo) {
   };
 }
 
-export async function addSubtask(todoId, title, deadline, tags) {
+export async function addSubtask(
+  todoId,
+  title,
+  deadline,
+  tags,
+  is_review = false,
+) {
   error.set(null);
 
   try {
-    const newSubtask = await subtasksApi.create(todoId, title, deadline, tags);
+    const newSubtask = await subtasksApi.create(
+      todoId,
+      title,
+      deadline,
+      tags,
+      is_review,
+    );
+    newSubtask.is_review = is_review;
 
     todos.update((list) =>
       list.map((todo) => {
@@ -295,7 +308,6 @@ export async function addSubtask(todoId, title, deadline, tags) {
         return todo;
       }),
     );
-
     return newSubtask;
   } catch (err) {
     console.error("Failed to add subtask:", err);

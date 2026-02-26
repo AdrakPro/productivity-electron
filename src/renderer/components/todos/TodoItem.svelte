@@ -93,12 +93,12 @@
     if (newSubtaskTitle.trim()) {
       const deadline = todo.is_global ? newSubtaskDeadline || null : null;
       const tags = todo.is_global ? newSubtaskTags : [];
-      await addSubtask(todo.id, newSubtaskTitle.trim(), deadline, tags);
-
-      // If marked for review, create Review 1 and update parent todo
+      const newSubtask = await addSubtask(todo.id, newSubtaskTitle.trim(), deadline, tags, newSubtaskIsReview);
+      newSubtask.is_review = newSubtaskIsReview;
+      // If marked for review, create Review 1 for this subtask
       if (todo.is_global && newSubtaskIsReview) {
         try {
-          // 1. Mark the parent todo as a review task
+          // 1. Mark the parent todo as a review task if not already
           if (!todo.is_review) {
             await updateTodo(todo.id, {
               title: todo.title,
@@ -110,18 +110,20 @@
             });
           }
 
-          // 2. Create Review 1 (due tomorrow)
+          // 2. Create Review 1 (due tomorrow) for this subtask
           const reviewDate = new Date();
           reviewDate.setDate(reviewDate.getDate() + 1);
           const reviewDateStr = reviewDate.toISOString().split("T")[0];
           await reviewsApi.create(
             todo.id,
+            newSubtask.id,
+            newSubtask.title,
             1,
             reviewDateStr,
-            todo.priority || "none",
+            todo.priority || "none"
           );
 
-          // 3. Refresh the reviews store so Reviews tab shows it
+          // 3. Refresh the reviews store
           await loadReviews();
         } catch (err) {
           console.error("Failed to create review:", err);
@@ -144,11 +146,33 @@
   function handleSubtaskDelete(event) {
     const { subtaskId } = event.detail;
     deleteSubtask(todo.id, subtaskId);
+    reviewsApi.deleteBySubtaskId(subtaskId);
   }
 
-  function handleSubtaskEdit(event) {
-    const { subtaskId, title } = event.detail;
-    updateSubtask(todo.id, subtaskId, { title });
+  async function handleSubtaskEdit(event) {
+    const { subtaskId, title, is_review } = event.detail;
+    const subtask = todo.subtasks.find((s) => s.id === subtaskId);
+    const prevIsReview = subtask?.is_review ?? false;
+
+    await updateSubtask(todo.id, subtaskId, { title, is_review });
+
+    if (is_review && !prevIsReview) {
+      const reviewDate = new Date();
+      reviewDate.setDate(reviewDate.getDate() + 1);
+      const reviewDateStr = reviewDate.toISOString().split("T")[0];
+      await reviewsApi.create(
+        todo.id,
+        subtaskId,
+        title,
+        1,
+        reviewDateStr,
+        todo.priority || "none"
+      );
+      await loadReviews();
+    } else if (!is_review && prevIsReview) {
+      await reviewsApi.deleteBySubtaskId(subtaskId);
+      await loadReviews();
+    }
   }
 
   function handleSubtaskReorder(event) {
