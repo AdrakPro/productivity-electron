@@ -102,6 +102,9 @@
   "dependencies": {
     "better-sqlite3": "^12.6.2",
     "date-fns": "^3.3.1",
-    "lucide-svelte": "^0.344.0"
+    "lucide-svelte": "^0.344.0",
+    "node-fetch": "^2.7.0",
+    "dotenv": "^17.3.1",
+    "dropbox": "^10.34.0"
   }
 }

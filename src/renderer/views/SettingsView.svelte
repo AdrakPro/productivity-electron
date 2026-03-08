@@ -13,6 +13,7 @@
     Trash2,
     AlertTriangle,
     RefreshCw,
+    Cloud,
   } from "lucide-svelte";
   import {
     settings,
@@ -28,8 +29,24 @@
   import { exportTodos, importTodos } from "$lib/stores/todoStore.js";
   import { appApi } from "$lib/services/api.js";
   import ToggleSwitch from "$components/common/ToggleSwitch.svelte";
+  import {
+    syncConfig,
+    syncOnline,
+    syncHasToken,
+    syncInProgress,
+    loadSyncConfig,
+    saveSyncConfig,
+    refreshSyncStatus,
+    synchronizeNow,
+  } from "$lib/stores/syncStore.js";
 
   let fileInput;
+
+  // Local sync form state
+  let syncEnabled = false;
+  let syncIntervalMinutes = 15;
+  let syncRemotePath = "/todo-productivity-sync.json";
+  let syncSaving = false;
 
   // Clear data dialog state
   let showClearDataDialog = false;
@@ -37,9 +54,17 @@
   let isClearing = false;
   let clearError = null;
 
-  onMount(() => {
+  onMount(async () => {
     loadSettings();
     loadWorkingDirectory();
+
+    await loadSyncConfig();
+    await refreshSyncStatus(true);
+
+    const cfg = $syncConfig;
+    syncEnabled = !!cfg.enabled;
+    syncIntervalMinutes = Number(cfg.intervalMinutes || 15);
+    syncRemotePath = cfg.remotePath || "/todo-productivity-sync.json";
   });
 
   async function handleAutoLaunchChange(event) {
@@ -68,6 +93,24 @@
       await importTodos(file);
       event.target.value = "";
     }
+  }
+
+  async function handleSaveSyncSettings() {
+    syncSaving = true;
+    try {
+      await saveSyncConfig({
+        enabled: syncEnabled,
+        intervalMinutes: Math.max(1, Number(syncIntervalMinutes || 15)),
+        remotePath: syncRemotePath?.trim() || "/todo-productivity-sync.json",
+      });
+      await refreshSyncStatus(true);
+    } finally {
+      syncSaving = false;
+    }
+  }
+
+  async function handleSyncNowFromSettings() {
+    await synchronizeNow();
   }
 
   // Clear data functions
@@ -129,9 +172,7 @@
   <div class="space-y-6">
     <!-- Startup Section -->
     <div class="card animate-fadeIn">
-      <h3
-          class="text-sm font-medium text-gray-400 mb-4 flex items-center gap-2"
-      >
+      <h3 class="text-sm font-medium text-gray-400 mb-4 flex items-center gap-2">
         <Power size={16} />
         Startup
       </h3>
@@ -144,18 +185,94 @@
           </p>
         </div>
 
-        <ToggleSwitch
-            checked={$settings.autoLaunch}
-            on:change={handleAutoLaunchChange}
-        />
+        <ToggleSwitch checked={$settings.autoLaunch} on:change={handleAutoLaunchChange} />
+      </div>
+    </div>
+
+    <!-- Dropbox Sync Section -->
+    <div class="card animate-fadeIn" style="animation-delay: 25ms">
+      <h3 class="text-sm font-medium text-gray-400 mb-4 flex items-center gap-2">
+        <Cloud size={16} />
+        Dropbox Synchronization
+      </h3>
+
+      <div class="space-y-4">
+        <div class="flex items-center justify-between">
+          <div>
+            <p class="text-on-surface font-medium">Enable Dropbox sync</p>
+            <p class="text-sm text-gray-500">
+              Automatically synchronize all tasks, subtasks, reviews, streaks, statistics, and settings
+            </p>
+          </div>
+          <ToggleSwitch
+            checked={syncEnabled}
+            on:change={(e) => (syncEnabled = e.detail.checked)}
+          />
+        </div>
+
+        <div>
+          <label class="block text-sm text-gray-400 mb-2">Sync interval (minutes)</label>
+          <input
+            type="number"
+            min="1"
+            class="w-full bg-surface-lighter border border-surface-lighter rounded-lg px-3 py-2 text-on-surface"
+            bind:value={syncIntervalMinutes}
+          />
+        </div>
+
+        <div>
+          <label class="block text-sm text-gray-400 mb-2">Dropbox file path</label>
+          <input
+            type="text"
+            class="w-full bg-surface-lighter border border-surface-lighter rounded-lg px-3 py-2 text-on-surface"
+            bind:value={syncRemotePath}
+            placeholder="/todo-productivity-sync.json"
+          />
+        </div>
+
+        <div class="text-sm">
+          <p class="text-gray-400">
+            Token source:
+            {#if $syncHasToken}
+              <span class="text-green-400 font-medium"> .env loaded (DROPBOX_ACCESS_TOKEN)</span>
+            {:else}
+              <span class="text-error font-medium"> missing .env token</span>
+            {/if}
+          </p>
+          <p class="text-gray-500 mt-1">
+            Add <code>DROPBOX_ACCESS_TOKEN=...</code> in your project root <code>.env</code>.
+          </p>
+        </div>
+
+        <div class="flex gap-3">
+          <button
+            class="btn btn-ghost flex items-center gap-2"
+            on:click={handleSaveSyncSettings}
+            disabled={syncSaving}
+          >
+            <Cloud size={16} />
+            {syncSaving ? "Saving..." : "Save Sync Settings"}
+          </button>
+
+          <button
+            class="btn btn-ghost flex items-center gap-2"
+            on:click={handleSyncNowFromSettings}
+            disabled={$syncInProgress || !$syncOnline || !$syncHasToken}
+          >
+            <RefreshCw size={16} class={$syncInProgress ? "animate-spin" : ""} />
+            {$syncInProgress ? "Synchronizing..." : "Synchronize now"}
+          </button>
+        </div>
+
+        {#if !$syncOnline}
+          <p class="text-sm text-yellow-400">You are offline. Sync is disabled until connection is restored.</p>
+        {/if}
       </div>
     </div>
 
     <!-- File Explorer Section -->
     <div class="card animate-fadeIn" style="animation-delay: 50ms">
-      <h3
-          class="text-sm font-medium text-gray-400 mb-4 flex items-center gap-2"
-      >
+      <h3 class="text-sm font-medium text-gray-400 mb-4 flex items-center gap-2">
         <Folder size={16} />
         File Explorer
       </h3>
@@ -169,25 +286,16 @@
 
           {#if $workingDirectory}
             <div class="flex items-center gap-2">
-              <div
-                  class="flex-1 bg-surface-lighter rounded-lg px-3 py-2 text-sm truncate"
-              >
+              <div class="flex-1 bg-surface-lighter rounded-lg px-3 py-2 text-sm truncate">
                 <span class="text-gray-400">📁</span>
                 <span class="ml-2 text-on-surface">{$workingDirectory}</span>
               </div>
-              <button
-                  class="btn btn-ghost p-2"
-                  on:click={handleClearFolder}
-                  title="Remove folder"
-              >
+              <button class="btn btn-ghost p-2" on:click={handleClearFolder} title="Remove folder">
                 <X size={18} />
               </button>
             </div>
           {:else}
-            <button
-                class="btn btn-ghost flex items-center gap-2"
-                on:click={handleSelectFolder}
-            >
+            <button class="btn btn-ghost flex items-center gap-2" on:click={handleSelectFolder}>
               <FolderOpen size={18} />
               Select Folder
             </button>
@@ -198,15 +306,12 @@
 
     <!-- Data Management Section -->
     <div class="card animate-fadeIn" style="animation-delay: 100ms">
-      <h3
-          class="text-sm font-medium text-gray-400 mb-4 flex items-center gap-2"
-      >
+      <h3 class="text-sm font-medium text-gray-400 mb-4 flex items-center gap-2">
         <Download size={16} />
         Data Management
       </h3>
 
       <div class="space-y-6">
-        <!-- Export & Import -->
         <div>
           <p class="text-on-surface font-medium mb-2">Export & Import</p>
           <p class="text-sm text-gray-500 mb-3">
@@ -214,33 +319,26 @@
           </p>
 
           <div class="flex gap-3">
-            <button
-                class="btn btn-ghost flex items-center gap-2"
-                on:click={handleExport}
-            >
+            <button class="btn btn-ghost flex items-center gap-2" on:click={handleExport}>
               <Download size={18} />
               Export Data
             </button>
 
-            <button
-                class="btn btn-ghost flex items-center gap-2"
-                on:click={handleImportClick}
-            >
+            <button class="btn btn-ghost flex items-center gap-2" on:click={handleImportClick}>
               <Upload size={18} />
               Import Data
             </button>
 
             <input
-                bind:this={fileInput}
-                type="file"
-                accept=".json"
-                class="hidden"
-                on:change={handleFileSelected}
+              bind:this={fileInput}
+              type="file"
+              accept=".json"
+              class="hidden"
+              on:change={handleFileSelected}
             />
           </div>
         </div>
 
-        <!-- Clear All Data -->
         <div class="pt-4 border-t border-surface-lighter">
           <p class="text-on-surface font-medium mb-2 text-error">Danger Zone</p>
           <p class="text-sm text-gray-500 mb-3">
@@ -248,10 +346,7 @@
             This action cannot be undone.
           </p>
 
-          <button
-              class="btn btn-danger flex items-center gap-2"
-              on:click={openClearDataDialog}
-          >
+          <button class="btn btn-danger flex items-center gap-2" on:click={openClearDataDialog}>
             <Trash2 size={18} />
             Clear All Data
           </button>
@@ -261,13 +356,10 @@
 
     <!-- Keyboard Shortcuts -->
     <div class="card animate-fadeIn" style="animation-delay: 150ms">
-      <h3
-          class="text-sm font-medium text-gray-400 mb-4 flex items-center gap-2"
-      >
+      <h3 class="text-sm font-medium text-gray-400 mb-4 flex items-center gap-2">
         <Keyboard size={16} />
         Keyboard Shortcuts
       </h3>
-
       <div class="space-y-2 text-sm">
         <div class="flex items-center justify-between py-1">
           <span class="text-gray-400">New task</span>
@@ -279,48 +371,15 @@
             <kbd class="px-2 py-1 bg-surface-lighter rounded text-xs">N</kbd>
           </div>
         </div>
-        <div class="flex items-center justify-between py-1">
-          <span class="text-gray-400">Save task (when editing)</span>
-          <div class="flex gap-1 items-center">
-            <kbd class="px-2 py-1 bg-surface-lighter rounded text-xs">Ctrl</kbd>
-            <span class="text-gray-600 text-xs">+</span>
-            <kbd class="px-2 py-1 bg-surface-lighter rounded text-xs">Enter</kbd>
-          </div>
-        </div>
-        <div class="flex items-center justify-between py-1">
-          <span class="text-gray-400">Go to today</span>
-          <div class="flex gap-1 items-center">
-            <kbd class="px-2 py-1 bg-surface-lighter rounded text-xs">T</kbd>
-            <span class="text-gray-600 text-xs">or</span>
-            <kbd class="px-2 py-1 bg-surface-lighter rounded text-xs">Ctrl</kbd>
-            <span class="text-gray-600 text-xs">+</span>
-            <kbd class="px-2 py-1 bg-surface-lighter rounded text-xs">B</kbd>
-          </div>
-        </div>
-        <div class="flex items-center justify-between py-1">
-          <span class="text-gray-400">Previous day</span>
-          <kbd class="px-2 py-1 bg-surface-lighter rounded text-xs">←</kbd>
-        </div>
-        <div class="flex items-center justify-between py-1">
-          <span class="text-gray-400">Next day</span>
-          <kbd class="px-2 py-1 bg-surface-lighter rounded text-xs">→</kbd>
-        </div>
-        <div class="flex items-center justify-between py-1">
-          <span class="text-gray-400">Cancel / Close dialog</span>
-          <kbd class="px-2 py-1 bg-surface-lighter rounded text-xs">Esc</kbd>
-        </div>
       </div>
     </div>
 
     <!-- About Section -->
     <div class="card animate-fadeIn" style="animation-delay: 200ms">
-      <h3
-          class="text-sm font-medium text-gray-400 mb-4 flex items-center gap-2"
-      >
+      <h3 class="text-sm font-medium text-gray-400 mb-4 flex items-center gap-2">
         <Info size={16} />
         About
       </h3>
-
       <div class="space-y-3">
         <div class="flex items-center justify-between">
           <span class="text-gray-400">Version</span>
@@ -335,21 +394,19 @@
   </div>
 </div>
 
-<!-- Clear Data Confirmation Dialog -->
 {#if showClearDataDialog}
   <div
-      class="fixed inset-0 bg-black/60 flex items-center justify-center z-50 animate-fadeIn"
-      on:click={closeClearDataDialog}
-      on:keydown={handleClearDialogKeydown}
-      role="dialog"
-      aria-modal="true"
-      tabindex="-1"
+    class="fixed inset-0 bg-black/60 flex items-center justify-center z-50 animate-fadeIn"
+    on:click={closeClearDataDialog}
+    on:keydown={handleClearDialogKeydown}
+    role="dialog"
+    aria-modal="true"
+    tabindex="-1"
   >
     <div
-        class="bg-surface-light rounded-xl shadow-2xl p-6 w-[420px] max-w-[90vw] animate-scaleIn"
-        on:click|stopPropagation
+      class="bg-surface-light rounded-xl shadow-2xl p-6 w-[420px] max-w-[90vw] animate-scaleIn"
+      on:click|stopPropagation
     >
-      <!-- Header -->
       <div class="flex items-center gap-3 mb-4">
         <div class="p-2 bg-error/20 rounded-lg">
           <AlertTriangle size={24} class="text-error" />
@@ -360,74 +417,38 @@
         </div>
       </div>
 
-      <!-- Warning Content -->
       <div class="mb-5">
-        <p class="text-gray-300 mb-3">
-          This will permanently delete all of your data:
-        </p>
-        <ul class="space-y-2 mb-4">
-          <li class="flex items-center gap-2 text-sm text-gray-400">
-            <span class="w-1.5 h-1.5 bg-error rounded-full"></span>
-            All todos and subtasks
-          </li>
-          <li class="flex items-center gap-2 text-sm text-gray-400">
-            <span class="w-1.5 h-1.5 bg-error rounded-full"></span>
-            All archived items
-          </li>
-          <li class="flex items-center gap-2 text-sm text-gray-400">
-            <span class="w-1.5 h-1.5 bg-error rounded-full"></span>
-            Statistics and streak data
-          </li>
-          <li class="flex items-center gap-2 text-sm text-gray-400">
-            <span class="w-1.5 h-1.5 bg-error rounded-full"></span>
-            All application settings
-          </li>
-        </ul>
-
-        <div class="bg-error/10 border border-error/30 rounded-lg p-3">
-          <p class="text-sm text-error font-medium">
-            ⚠️ This action cannot be undone. The app will close after clearing data.
-          </p>
-        </div>
+        <p class="text-gray-300 mb-3">This will permanently delete all of your data:</p>
       </div>
 
-      <!-- Confirmation Input -->
       <div class="mb-5">
         <label class="block text-sm text-gray-400 mb-2">
           Type <span class="font-bold text-on-surface bg-surface-lighter px-1.5 py-0.5 rounded">DELETE</span> to confirm:
         </label>
         <input
-            type="text"
-            class="w-full bg-surface-lighter border border-surface-lighter rounded-lg px-4 py-2.5
-            text-on-surface placeholder-gray-600 focus:outline-none focus:border-error
-            transition-colors"
-            placeholder="Type DELETE here"
-            bind:value={clearDataConfirmText}
-            on:keydown={handleClearDialogKeydown}
-            autofocus
+          type="text"
+          class="w-full bg-surface-lighter border border-surface-lighter rounded-lg px-4 py-2.5 text-on-surface"
+          placeholder="Type DELETE here"
+          bind:value={clearDataConfirmText}
+          on:keydown={handleClearDialogKeydown}
+          autofocus
         />
       </div>
 
-      <!-- Error Message -->
       {#if clearError}
         <div class="mb-4 p-3 bg-error/10 border border-error/30 rounded-lg">
           <p class="text-sm text-error">{clearError}</p>
         </div>
       {/if}
 
-      <!-- Action Buttons -->
       <div class="flex justify-end gap-3">
-        <button
-            class="btn btn-ghost px-4 py-2"
-            on:click={closeClearDataDialog}
-            disabled={isClearing}
-        >
+        <button class="btn btn-ghost px-4 py-2" on:click={closeClearDataDialog} disabled={isClearing}>
           Cancel
         </button>
         <button
-            class="btn btn-danger px-4 py-2 flex items-center gap-2"
-            on:click={handleClearAllData}
-            disabled={isClearing || clearDataConfirmText !== "DELETE"}
+          class="btn btn-danger px-4 py-2 flex items-center gap-2"
+          on:click={handleClearAllData}
+          disabled={isClearing || clearDataConfirmText !== "DELETE"}
         >
           {#if isClearing}
             <RefreshCw size={16} class="animate-spin" />
@@ -443,33 +464,16 @@
 {/if}
 
 <style>
-  .btn-danger {
-    background-color: rgba(207, 102, 121, 0.2);
-    color: #cf6679;
-    border: 1px solid rgba(207, 102, 121, 0.3);
-  }
-
-  .btn-danger:hover:not(:disabled) {
-    background-color: rgba(207, 102, 121, 0.3);
-  }
-
-  .btn-danger:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-  }
-
-  @keyframes scaleIn {
-    from {
-      opacity: 0;
-      transform: scale(0.95);
+    .btn-danger {
+        background-color: rgba(207, 102, 121, 0.2);
+        color: #cf6679;
+        border: 1px solid rgba(207, 102, 121, 0.3);
     }
-    to {
-      opacity: 1;
-      transform: scale(1);
+    .btn-danger:hover:not(:disabled) {
+        background-color: rgba(207, 102, 121, 0.3);
     }
-  }
-
-  .animate-scaleIn {
-    animation: scaleIn 0.15s ease-out;
-  }
+    .btn-danger:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+    }
 </style>

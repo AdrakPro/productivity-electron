@@ -124,4 +124,11 @@ contextBridge.exposeInMainWorld("api", {
       ipcRenderer.invoke("templates:update", id, template),
     delete: (id) => ipcRenderer.invoke("templates:delete", id),
   },
+
+  sync: {
+    getConfig: () => ipcRenderer.invoke("sync:getConfig"),
+    setConfig: (config) => ipcRenderer.invoke("sync:setConfig", config),
+    getStatus: () => ipcRenderer.invoke("sync:getStatus"),
+    now: (opts) => ipcRenderer.invoke("sync:now", opts),
+  },
 });

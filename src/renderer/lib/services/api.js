@@ -70,6 +70,32 @@ const mockApi = {
     }),
     updatePriority: async (id, priority) => ({ id, priority }),
   },
+   templates: {
+    getAll: async () => [],
+    getById: async (id) => ({ id }),
+    create: async (template) => ({ id: Date.now(), ...template }),
+    update: async (id, template) => ({ id, ...template }),
+    delete: async () => true,
+  },
+  sync: {
+    getConfig: async () => ({
+      enabled: false,
+      intervalMinutes: 15,
+      remotePath: "/todo-productivity-sync.json",
+    }),
+    setConfig: async (config) => ({
+      enabled: !!config.dropboxSyncEnabled,
+      intervalMinutes: Number(config.dropboxSyncIntervalMinutes || 15),
+      remotePath:
+        config.dropboxSyncRemotePath || "/todo-productivity-sync.json",
+    }),
+    getStatus: async () => ({
+      online: typeof navigator !== "undefined" ? navigator.onLine : true,
+      syncing: false,
+      hasToken: false,
+    }),
+    now: async () => ({ ok: true }),
+  },
 };
 
 export const api = isElectron() ? window.api : mockApi;
@@ -79,35 +105,27 @@ export const todosApi = {
   async getAll() {
     return api.todos.getAll();
   },
-
   async getByDate(date) {
     return api.todos.getByDate(date);
   },
-
   async getGlobal() {
     return api.todos.getGlobal();
   },
-
   async getArchived() {
     return api.todos.getArchived();
   },
-
   async create(todo) {
     return api.todos.create(todo);
   },
-
   async update(id, updates) {
     return api.todos.update(id, updates);
   },
-
   async delete(id) {
     return api.todos.delete(id);
   },
-
   async archive(id) {
     return api.todos.archive(id);
   },
-
   async archiveByDate(date) {
     return api.todos.archiveByDate(date);
   },
@@ -118,15 +136,12 @@ export const subtasksApi = {
   async create(todoId, title, deadline, tags, is_review = false) {
     return api.subtasks.create(todoId, title, deadline, tags, is_review);
   },
-
   async update(id, updates) {
     return api.subtasks.update(id, updates);
   },
-
   async delete(id) {
     return api.subtasks.delete(id);
   },
-
   async reorder(todoId, subtaskIds) {
     return api.subtasks.reorder(todoId, subtaskIds);
   },
@@ -137,7 +152,6 @@ export const statisticsApi = {
   async get() {
     return api.statistics.get();
   },
-
   async update(data) {
     return api.statistics.update(data);
   },
@@ -148,11 +162,9 @@ export const streaksApi = {
   async get() {
     return api.streaks.get();
   },
-
   async getByDate(date) {
     return api.streaks.getByDate(date);
   },
-
   async recordCompletion(date) {
     return api.streaks.recordCompletion(date);
   },
@@ -163,51 +175,39 @@ export const filesApi = {
   async getTree(rootPath) {
     return api.files.getTree(rootPath);
   },
-
   async openFile(filePath) {
     return api.files.openFile(filePath);
   },
-
   async openInFileManager(folderPath) {
     return api.files.openInFileManager(folderPath);
   },
-
   async showInFileManager(itemPath) {
     return api.files.showInFileManager(itemPath);
   },
-
   async selectDirectory() {
     return api.files.selectDirectory();
   },
-
   async getWorkingDirectory() {
     return api.files.getWorkingDirectory();
   },
-
   async setWorkingDirectory(dirPath) {
     return api.files.setWorkingDirectory(dirPath);
   },
-
   async createFile(parentPath, fileName) {
     return api.files.createFile(parentPath, fileName);
   },
-
   async createFolder(parentPath, folderName) {
     return api.files.createFolder(parentPath, folderName);
   },
-
   async rename(oldPath, newName) {
     return api.files.rename(oldPath, newName);
   },
-
   async deleteItem(itemPath) {
     return api.files.deleteItem(itemPath);
   },
-
   async moveItem(sourcePath, targetFolder) {
     return api.files.moveItem(sourcePath, targetFolder);
   },
-
   async copyItem(sourcePath, targetFolder) {
     return api.files.copyItem(sourcePath, targetFolder);
   },
@@ -218,27 +218,21 @@ export const appApi = {
   async getAutoLaunch() {
     return api.app.getAutoLaunch();
   },
-
   async setAutoLaunch(enabled) {
     return api.app.setAutoLaunch(enabled);
   },
-
   async getVersion() {
     return api.app.getVersion();
   },
-
   async minimize() {
     return api.app.minimize();
   },
-
   async quit() {
     return api.app.quit();
   },
-
   async clearAllData() {
     return api.app.clearAllData();
   },
-
   async getPaths() {
     return api.app.getPaths();
   },
@@ -249,35 +243,41 @@ export const reviewsApi = {
   async getByTodoId(todoId) {
     return api.reviews.getByTodoId(todoId);
   },
-
   async getByDate(date) {
     return api.reviews.getByDate(date);
   },
-
   async getDueToday() {
     return api.reviews.getDueToday();
   },
-
   async getAllPending() {
     return api.reviews.getAllPending();
   },
-
   async complete(id) {
     return api.reviews.complete(id);
   },
-
   async getAll() {
     return api.reviews.getAll();
   },
-
-  async create(todoId, subtaskId, subtaskTitle, reviewNumber, reviewDate, priority) {
-    return api.reviews.create(todoId, subtaskId, subtaskTitle, reviewNumber, reviewDate, priority);
+  async create(
+    todoId,
+    subtaskId,
+    subtaskTitle,
+    reviewNumber,
+    reviewDate,
+    priority,
+  ) {
+    return api.reviews.create(
+      todoId,
+      subtaskId,
+      subtaskTitle,
+      reviewNumber,
+      reviewDate,
+      priority,
+    );
   },
-
   async deleteBySubtaskId(subtaskId) {
     return api.reviews.deleteBySubtaskId(subtaskId);
   },
-
   async updatePriority(id, priority) {
     return api.reviews.updatePriority(id, priority);
   },
@@ -298,5 +298,20 @@ export const templatesApi = {
   },
   async delete(id) {
     return api.templates.delete(id);
+  },
+};
+
+export const syncApi = {
+  async getConfig() {
+    return api.sync.getConfig();
+  },
+  async setConfig(config) {
+    return api.sync.setConfig(config);
+  },
+  async getStatus() {
+    return api.sync.getStatus();
+  },
+  async now(opts = {}) {
+    return api.sync.now(opts);
   },
 };

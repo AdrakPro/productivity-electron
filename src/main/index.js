@@ -1,3 +1,5 @@
+require("dotenv").config();
+
 const { app, BrowserWindow, Tray, Menu } = require("electron");
 const path = require("path");
 const fs = require("fs");
@@ -143,8 +145,14 @@ app.whenReady().then(async () => {
   try {
     const db = initializeDatabase();
     runMigrations(db);
-    registerAllHandlers(db);
+    const { syncService} = registerAllHandlers(db);
     createWindow();
+
+    setTimeout(() => {
+      syncService?.syncNow({ pullFirst: true }).catch((e) => {
+        console.error("Startup Dropbox sync failed:", e);
+      });
+    }, 2000);
 
     app.on("activate", () => {
       if (BrowserWindow.getAllWindows().length === 0) {

@@ -4,6 +4,7 @@ const { registerStatisticsHandlers } = require("./statisticsHandlers.js");
 const { registerFileHandlers } = require("./fileHandlers.js");
 const { registerAppHandlers } = require("./appHandlers.js");
 const { registerReviewHandlers } = require("./reviewHandlers.js");
+const { registerSyncHandlers } = require("./syncHandlers.js");
 
 const {
   TodoRepository,
@@ -24,6 +25,7 @@ const {
   TemplateRepository,
 } = require("../database/repositories/templateRepository.js");
 const { registerTemplateHandlers } = require("./templateHandlers");
+const { SyncService } = require("../services/syncService.js");
 
 /**
  * Register all IPC handlers
@@ -44,7 +46,16 @@ function registerAllHandlers(db) {
   registerReviewHandlers(reviewRepo, statisticsRepo);
   registerTemplateHandlers(templateRepo);
 
+  const syncService = new SyncService({
+    db,
+    settingsRepo
+  });
+  registerSyncHandlers(syncService);
+  syncService.startInterval();
+
   console.log("All IPC handlers registered");
+
+  return { syncService };
 }
 
 module.exports = {
