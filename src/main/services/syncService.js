@@ -1,7 +1,7 @@
 const { net } = require("electron");
 const { Dropbox } = require("dropbox");
-const fs = require("fs");
 const fetch = require("node-fetch");
+const fs = require("fs");
 const path = require("path");
 
 class SyncService {
@@ -10,23 +10,31 @@ class SyncService {
     this.settingsRepo = settingsRepo;
     this.intervalRef = null;
     this.isSyncing = false;
-
-    const token = process.env.DROPBOX_ACCESS_TOKEN;
-    if (!token) {
-      console.warn("DROPBOX_ACCESS_TOKEN is missing in .env");
-      this.dbx = null;
-    } else {
-      this.dbx = new Dropbox({ accessToken: token, fetch });
-    }
+    this.dbx = null;
   }
 
   isOnline() {
     return net.isOnline();
   }
 
+  getAccessToken() {
+    const fromSettings = this.settingsRepo.get("dropboxAccessToken", "");
+    if (fromSettings && String(fromSettings).trim()) {
+      return String(fromSettings).trim();
+    }
+    return process.env.DROPBOX_ACCESS_TOKEN || "";
+  }
+
+  getClient() {
+    const token = this.getAccessToken();
+    if (!token) return null;
+    return new Dropbox({ accessToken: token, fetch });
+  }
+
   getConfig() {
     return {
       enabled: !!this.settingsRepo.get("dropboxSyncEnabled", false),
+      accessToken: this.settingsRepo.get("dropboxAccessToken", ""),
       intervalMinutes: Number(
         this.settingsRepo.get("dropboxSyncIntervalMinutes", 15),
       ),
@@ -44,6 +52,12 @@ class SyncService {
   setConfig(config = {}) {
     if (config.dropboxSyncEnabled !== undefined) {
       this.settingsRepo.set("dropboxSyncEnabled", !!config.dropboxSyncEnabled);
+    }
+    if (config.dropboxAccessToken !== undefined) {
+      this.settingsRepo.set(
+        "dropboxAccessToken",
+        config.dropboxAccessToken || "",
+      );
     }
     if (config.dropboxSyncIntervalMinutes !== undefined) {
       const n = Number(config.dropboxSyncIntervalMinutes);
@@ -101,11 +115,13 @@ class SyncService {
   }
 
   async downloadDbSnapshotFromDropbox() {
+    const dbx = this.getClient();
+    if (!dbx) throw new Error("Dropbox token is not configured");
+
     const { remotePath } = this.getConfig();
-    if (!this.dbx) throw new Error("Dropbox token is not configured");
 
     try {
-      const res = await this.dbx.filesDownload({ path: remotePath });
+      const res = await dbx.filesDownload({ path: remotePath });
       const fileBinary = res?.result?.fileBinary;
       if (!fileBinary) return null;
       const text = Buffer.from(fileBinary).toString("utf-8");
@@ -118,10 +134,12 @@ class SyncService {
   }
 
   async uploadDbSnapshotToDropbox(payload) {
-    const { remotePath } = this.getConfig();
-    if (!this.dbx) throw new Error("Dropbox token is not configured");
+    const dbx = this.getClient();
+    if (!dbx) throw new Error("Dropbox token is not configured");
 
-    await this.dbx.filesUpload({
+    const { remotePath } = this.getConfig();
+
+    await dbx.filesUpload({
       path: remotePath,
       mode: { ".tag": "overwrite" },
       mute: true,
@@ -130,11 +148,11 @@ class SyncService {
   }
 
   async ensureDropboxFolder(folderPath) {
+    const dbx = this.getClient();
+    if (!dbx) throw new Error("Dropbox token is not configured");
+
     try {
-      await this.dbx.filesCreateFolderV2({
-        path: folderPath,
-        autorename: false,
-      });
+      await dbx.filesCreateFolderV2({ path: folderPath, autorename: false });
     } catch (e) {
       const summary = e?.error?.error_summary || "";
       if (!summary.includes("path/conflict/folder")) throw e;
@@ -167,7 +185,45 @@ class SyncService {
     return out;
   }
 
+  async listDropboxFilesRecursive(rootPath) {
+    const dbx = this.getClient();
+    if (!dbx) throw new Error("Dropbox token is not configured");
+
+    const files = [];
+    try {
+      let res = await dbx.filesListFolder({ path: rootPath, recursive: true });
+      files.push(
+        ...(res?.result?.entries || []).filter((e) => e[".tag"] === "file"),
+      );
+
+      while (res?.result?.has_more) {
+        res = await dbx.filesListFolderContinue({ cursor: res.result.cursor });
+        files.push(
+          ...(res?.result?.entries || []).filter((e) => e[".tag"] === "file"),
+        );
+      }
+    } catch (e) {
+      const summary = e?.error?.error_summary || "";
+      if (e?.status === 409 && summary.includes("path/not_found")) return [];
+      throw e;
+    }
+
+    return files;
+  }
+
+  isDangerousEmptyLocalState(localFiles) {
+    const allowEmptyMirror = !!this.settingsRepo.get(
+      "dropboxAllowEmptyMirrorDelete",
+      false,
+    );
+    if (allowEmptyMirror) return false;
+    return !localFiles || localFiles.length === 0;
+  }
+
   async uploadNotesDirectoryToDropbox() {
+    const dbx = this.getClient();
+    if (!dbx) throw new Error("Dropbox token is not configured");
+
     const workingDir = this.getWorkingDirectoryPath();
     if (!workingDir || !fs.existsSync(workingDir)) {
       return {
@@ -189,12 +245,10 @@ class SyncService {
 
     const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB
 
-    // Build local relative path set (normalized lowercase for compare)
     const localRelSet = new Set(
       localFiles.map((f) => f.relPath.replace(/\\/g, "/").toLowerCase()),
     );
 
-    // 1) Upload/overwrite all local files
     for (const f of localFiles) {
       if (f.size > MAX_FILE_SIZE) {
         skipped++;
@@ -212,7 +266,7 @@ class SyncService {
       }
 
       const content = fs.readFileSync(f.absPath);
-      await this.dbx.filesUpload({
+      await dbx.filesUpload({
         path: remoteFilePath,
         mode: { ".tag": "overwrite" },
         mute: true,
@@ -222,7 +276,6 @@ class SyncService {
       uploaded++;
     }
 
-    // 2) Delete remote files that no longer exist locally (guarded)
     if (this.isDangerousEmptyLocalState(localFiles)) {
       deleteSkippedByGuard = true;
       return { uploaded, skipped, deleted, deleteSkippedByGuard };
@@ -238,9 +291,7 @@ class SyncService {
         : path.posix.basename(remotePathLower);
 
       if (!localRelSet.has(rel.toLowerCase())) {
-        await this.dbx.filesDeleteV2({
-          path: rf.path_lower || rf.path_display,
-        });
+        await dbx.filesDeleteV2({ path: rf.path_lower || rf.path_display });
         deleted++;
       }
     }
@@ -248,36 +299,10 @@ class SyncService {
     return { uploaded, skipped, deleted, deleteSkippedByGuard };
   }
 
-  async listDropboxFilesRecursive(rootPath) {
-    const files = [];
-    try {
-      let res = await this.dbx.filesListFolder({
-        path: rootPath,
-        recursive: true,
-      });
-
-      files.push(
-        ...(res?.result?.entries || []).filter((e) => e[".tag"] === "file"),
-      );
-
-      while (res?.result?.has_more) {
-        res = await this.dbx.filesListFolderContinue({
-          cursor: res.result.cursor,
-        });
-        files.push(
-          ...(res?.result?.entries || []).filter((e) => e[".tag"] === "file"),
-        );
-      }
-    } catch (e) {
-      const summary = e?.error?.error_summary || "";
-      if (e?.status === 409 && summary.includes("path/not_found")) return [];
-      throw e;
-    }
-
-    return files;
-  }
-
   async downloadNotesDirectoryFromDropbox(targetLocalDir) {
+    const dbx = this.getClient();
+    if (!dbx) throw new Error("Dropbox token is not configured");
+
     if (!targetLocalDir) return { downloaded: 0 };
     fs.mkdirSync(targetLocalDir, { recursive: true });
 
@@ -295,7 +320,7 @@ class SyncService {
       const localFilePath = path.join(targetLocalDir, rel);
       fs.mkdirSync(path.dirname(localFilePath), { recursive: true });
 
-      const dl = await this.dbx.filesDownload({
+      const dl = await dbx.filesDownload({
         path: rf.path_lower || rf.path_display,
       });
       const fileBinary = dl?.result?.fileBinary;
@@ -383,23 +408,10 @@ class SyncService {
     tx();
   }
 
-  isDangerousEmptyLocalState(localFiles) {
-    const allowEmptyMirror = !!this.settingsRepo.get(
-      "dropboxAllowEmptyMirrorDelete",
-      false,
-    );
-
-    // If explicitly allowed, no guard
-    if (allowEmptyMirror) return false;
-
-    // Guard: local folder has zero files -> could be accidental (unmounted disk, wrong path, etc.)
-    return !localFiles || localFiles.length === 0;
-  }
-
   async syncNow({ pullFirst = false } = {}) {
     if (this.isSyncing) return { ok: false, message: "Already syncing" };
     if (!this.isOnline()) return { ok: false, message: "Offline" };
-    if (!this.dbx)
+    if (!this.getAccessToken())
       return { ok: false, message: "Dropbox token not configured" };
 
     this.isSyncing = true;
@@ -412,7 +424,6 @@ class SyncService {
           const workingDirectory =
             remote?.data?.notes?.workingDirectory ||
             this.getWorkingDirectoryPath();
-
           if (workingDirectory) {
             this.settingsRepo.set("workingDirectory", workingDirectory);
             await this.downloadNotesDirectoryFromDropbox(workingDirectory);
@@ -434,9 +445,9 @@ class SyncService {
   startInterval() {
     this.stopInterval();
     const cfg = this.getConfig();
-    if (!cfg.enabled || !this.dbx) return;
+    if (!cfg.enabled || !this.getAccessToken()) return;
 
-    const ms = Math.max(1, cfg.intervalMinutes) * 60 * 1000;
+    const ms = Math.max(1, cfg.intervalMinutes) * 60 * 1000 * 2;
     this.intervalRef = setInterval(() => {
       this.syncNow().catch((e) => console.error("Scheduled sync failed:", e));
     }, ms);

@@ -4,8 +4,10 @@ import { success, error as toastError, info } from "$lib/stores/toastStore.js";
 
 export const syncConfig = writable({
   enabled: false,
+  accessToken: "",
   intervalMinutes: 15,
   remotePath: "/todo-productivity-sync.json",
+  remoteNotesRoot: "/todo-productivity-notes",
 });
 
 export const syncOnline = writable(true);
@@ -20,8 +22,10 @@ export async function loadSyncConfig() {
     const cfg = await syncApi.getConfig();
     syncConfig.set({
       enabled: !!cfg.enabled,
+      accessToken: cfg.accessToken || "",
       intervalMinutes: Number(cfg.intervalMinutes || 15),
       remotePath: cfg.remotePath || "/todo-productivity-sync.json",
+      remoteNotesRoot: cfg.remoteNotesRoot || "/todo-productivity-notes",
     });
   } catch (e) {
     syncError.set(e.message || "Failed to load sync configuration");
@@ -33,17 +37,22 @@ export async function saveSyncConfig(partial) {
 
   const payload = {
     dropboxSyncEnabled: !!partial.enabled,
+    dropboxAccessToken: partial.accessToken || "",
     dropboxSyncIntervalMinutes: Number(partial.intervalMinutes || 15),
     dropboxSyncRemotePath:
       partial.remotePath?.trim() || "/todo-productivity-sync.json",
+    dropboxNotesRootPath:
+      partial.remoteNotesRoot?.trim() || "/todo-productivity-notes",
   };
 
   const cfg = await syncApi.setConfig(payload);
 
   syncConfig.set({
     enabled: !!cfg.enabled,
+    accessToken: cfg.accessToken || "",
     intervalMinutes: Number(cfg.intervalMinutes || 15),
     remotePath: cfg.remotePath || "/todo-productivity-sync.json",
+    remoteNotesRoot: cfg.remoteNotesRoot || "/todo-productivity-notes",
   });
 
   success("Sync settings saved");
@@ -57,7 +66,7 @@ export async function refreshSyncStatus(silent = true) {
     syncHasToken.set(!!st.hasToken);
 
     if (!silent && !st.hasToken) {
-      info("Dropbox token is missing in .env (DROPBOX_ACCESS_TOKEN)");
+      info("Dropbox token is missing");
     }
   } catch (e) {
     if (!silent) {

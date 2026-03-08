@@ -47,6 +47,8 @@
   let syncIntervalMinutes = 15;
   let syncRemotePath = "/todo-productivity-sync.json";
   let syncSaving = false;
+  let syncRemoteNotesRoot = "/todo-productivity-notes";
+  let syncAccessToken = ""
 
   // Clear data dialog state
   let showClearDataDialog = false;
@@ -63,8 +65,10 @@
 
     const cfg = $syncConfig;
     syncEnabled = !!cfg.enabled;
+    syncAccessToken = cfg.accessToken || "";
     syncIntervalMinutes = Number(cfg.intervalMinutes || 15);
     syncRemotePath = cfg.remotePath || "/todo-productivity-sync.json";
+    syncRemoteNotesRoot = cfg.remoteNotesRoot || "/todo-productivity-notes";
   });
 
   async function handleAutoLaunchChange(event) {
@@ -100,8 +104,11 @@
     try {
       await saveSyncConfig({
         enabled: syncEnabled,
+        accessToken: syncAccessToken,
         intervalMinutes: Math.max(1, Number(syncIntervalMinutes || 15)),
         remotePath: syncRemotePath?.trim() || "/todo-productivity-sync.json",
+        remoteNotesRoot:
+          syncRemoteNotesRoot?.trim() || "/todo-productivity-notes",
       });
       await refreshSyncStatus(true);
     } finally {
@@ -201,13 +208,26 @@
           <div>
             <p class="text-on-surface font-medium">Enable Dropbox sync</p>
             <p class="text-sm text-gray-500">
-              Automatically synchronize all tasks, subtasks, reviews, streaks, statistics, and settings
+              Sync database + notes folder to Dropbox
             </p>
           </div>
           <ToggleSwitch
             checked={syncEnabled}
             on:change={(e) => (syncEnabled = e.detail.checked)}
           />
+        </div>
+
+        <div>
+          <label class="block text-sm text-gray-400 mb-2">Dropbox access token</label>
+          <input
+            type="password"
+            class="w-full bg-surface-lighter border border-surface-lighter rounded-lg px-3 py-2 text-on-surface"
+            bind:value={syncAccessToken}
+            placeholder="sl.xxxxx"
+          />
+          <p class="text-xs text-gray-500 mt-1">
+            Stored locally in app settings DB.
+          </p>
         </div>
 
         <div>
@@ -221,7 +241,7 @@
         </div>
 
         <div>
-          <label class="block text-sm text-gray-400 mb-2">Dropbox file path</label>
+          <label class="block text-sm text-gray-400 mb-2">Dropbox DB snapshot path</label>
           <input
             type="text"
             class="w-full bg-surface-lighter border border-surface-lighter rounded-lg px-3 py-2 text-on-surface"
@@ -230,18 +250,28 @@
           />
         </div>
 
+        <div>
+          <label class="block text-sm text-gray-400 mb-2">Dropbox notes root folder</label>
+          <input
+            type="text"
+            class="w-full bg-surface-lighter border border-surface-lighter rounded-lg px-3 py-2 text-on-surface"
+            bind:value={syncRemoteNotesRoot}
+            placeholder="/todo-productivity-notes"
+          />
+        </div>
+
         <div class="text-sm">
           <p class="text-gray-400">
-            Token source:
+            Token status:
             {#if $syncHasToken}
-              <span class="text-green-400 font-medium"> .env loaded (DROPBOX_ACCESS_TOKEN)</span>
+              <span class="text-green-400 font-medium"> configured</span>
             {:else}
-              <span class="text-error font-medium"> missing .env token</span>
+              <span class="text-error font-medium"> missing</span>
             {/if}
           </p>
-          <p class="text-gray-500 mt-1">
-            Add <code>DROPBOX_ACCESS_TOKEN=...</code> in your project root <code>.env</code>.
-          </p>
+          {#if !$syncOnline}
+            <p class="text-yellow-400 mt-1">Offline. Sync disabled until connection returns.</p>
+          {/if}
         </div>
 
         <div class="flex gap-3">
@@ -263,10 +293,6 @@
             {$syncInProgress ? "Synchronizing..." : "Synchronize now"}
           </button>
         </div>
-
-        {#if !$syncOnline}
-          <p class="text-sm text-yellow-400">You are offline. Sync is disabled until connection is restored.</p>
-        {/if}
       </div>
     </div>
 
