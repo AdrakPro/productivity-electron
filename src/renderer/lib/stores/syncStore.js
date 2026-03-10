@@ -4,7 +4,6 @@ import { success, error as toastError, info } from "$lib/stores/toastStore.js";
 
 export const syncConfig = writable({
   enabled: false,
-  accessToken: "",
   intervalMinutes: 15,
   remotePath: "/todo-productivity-sync.json",
   remoteNotesRoot: "/todo-productivity-notes",
@@ -14,6 +13,7 @@ export const syncOnline = writable(true);
 export const syncInProgress = writable(false);
 export const syncHasToken = writable(false);
 export const syncError = writable(null);
+export const syncConnecting = writable(false);
 
 let statusPollTimer = null;
 
@@ -22,7 +22,6 @@ export async function loadSyncConfig() {
     const cfg = await syncApi.getConfig();
     syncConfig.set({
       enabled: !!cfg.enabled,
-      accessToken: cfg.accessToken || "",
       intervalMinutes: Number(cfg.intervalMinutes || 15),
       remotePath: cfg.remotePath || "/todo-productivity-sync.json",
       remoteNotesRoot: cfg.remoteNotesRoot || "/todo-productivity-notes",
@@ -32,12 +31,48 @@ export async function loadSyncConfig() {
   }
 }
 
+export async function connectDropbox() {
+  syncError.set(null);
+  syncConnecting.set(true);
+  try {
+    const res = await syncApi.connectDropbox();
+    if (res?.ok) {
+      success("Dropbox connected");
+      await refreshSyncStatus(true);
+    }
+    return res;
+  } catch (e) {
+    const msg = e.message || "Failed to connect Dropbox";
+    syncError.set(msg);
+    toastError(msg);
+    throw e;
+  } finally {
+    syncConnecting.set(false);
+  }
+}
+
+export async function disconnectDropbox() {
+  syncError.set(null);
+  try {
+    const res = await syncApi.disconnectDropbox();
+    if (res?.ok) {
+      info("Dropbox disconnected");
+      await refreshSyncStatus(true);
+    }
+    return res;
+  } catch (e) {
+    const msg = e.message || "Failed to disconnect Dropbox";
+    syncError.set(msg);
+    toastError(msg);
+    throw e;
+  }
+}
+
 export async function saveSyncConfig(partial) {
   syncError.set(null);
 
   const payload = {
     dropboxSyncEnabled: !!partial.enabled,
-    dropboxAccessToken: partial.accessToken || "",
     dropboxSyncIntervalMinutes: Number(partial.intervalMinutes || 15),
     dropboxSyncRemotePath:
       partial.remotePath?.trim() || "/todo-productivity-sync.json",
@@ -49,7 +84,6 @@ export async function saveSyncConfig(partial) {
 
   syncConfig.set({
     enabled: !!cfg.enabled,
-    accessToken: cfg.accessToken || "",
     intervalMinutes: Number(cfg.intervalMinutes || 15),
     remotePath: cfg.remotePath || "/todo-productivity-sync.json",
     remoteNotesRoot: cfg.remoteNotesRoot || "/todo-productivity-notes",

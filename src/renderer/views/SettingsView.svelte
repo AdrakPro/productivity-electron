@@ -34,21 +34,23 @@
     syncOnline,
     syncHasToken,
     syncInProgress,
+    syncConnecting,
     loadSyncConfig,
     saveSyncConfig,
     refreshSyncStatus,
     synchronizeNow,
+    connectDropbox,
+    disconnectDropbox,
   } from "$lib/stores/syncStore.js";
 
   let fileInput;
 
   // Local sync form state
-  let syncEnabled = false;
+  let syncEnabled = true;
   let syncIntervalMinutes = 15;
   let syncRemotePath = "/todo-productivity-sync.json";
   let syncSaving = false;
   let syncRemoteNotesRoot = "/todo-productivity-notes";
-  let syncAccessToken = ""
 
   // Clear data dialog state
   let showClearDataDialog = false;
@@ -65,7 +67,6 @@
 
     const cfg = $syncConfig;
     syncEnabled = !!cfg.enabled;
-    syncAccessToken = cfg.accessToken || "";
     syncIntervalMinutes = Number(cfg.intervalMinutes || 15);
     syncRemotePath = cfg.remotePath || "/todo-productivity-sync.json";
     syncRemoteNotesRoot = cfg.remoteNotesRoot || "/todo-productivity-notes";
@@ -104,7 +105,6 @@
     try {
       await saveSyncConfig({
         enabled: syncEnabled,
-        accessToken: syncAccessToken,
         intervalMinutes: Math.max(1, Number(syncIntervalMinutes || 15)),
         remotePath: syncRemotePath?.trim() || "/todo-productivity-sync.json",
         remoteNotesRoot:
@@ -118,6 +118,14 @@
 
   async function handleSyncNowFromSettings() {
     await synchronizeNow();
+  }
+
+  async function handleConnectDropbox() {
+    await connectDropbox();
+  }
+
+  async function handleDisconnectDropbox() {
+    await disconnectDropbox();
   }
 
   // Clear data functions
@@ -211,23 +219,31 @@
               Sync database + notes folder to Dropbox
             </p>
           </div>
-          <ToggleSwitch
-            checked={syncEnabled}
-            on:change={(e) => (syncEnabled = e.detail.checked)}
-          />
         </div>
 
-        <div>
-          <label class="block text-sm text-gray-400 mb-2">Dropbox access token</label>
-          <input
-            type="password"
-            class="w-full bg-surface-lighter border border-surface-lighter rounded-lg px-3 py-2 text-on-surface"
-            bind:value={syncAccessToken}
-            placeholder="sl.xxxxx"
-          />
-          <p class="text-xs text-gray-500 mt-1">
-            Stored locally in app settings DB.
-          </p>
+        <div class="rounded-lg border border-surface-lighter p-3">
+          <p class="text-sm text-gray-400 mb-2">Dropbox account</p>
+
+          {#if $syncHasToken}
+            <p class="text-sm text-green-400 mb-3">Connected</p>
+            <button
+              class="btn btn-ghost flex items-center gap-2"
+              on:click={handleDisconnectDropbox}
+              disabled={$syncConnecting || $syncInProgress}
+            >
+              Disconnect Dropbox
+            </button>
+          {:else}
+            <p class="text-sm text-yellow-400 mb-3">Not connected</p>
+            <button
+              class="btn btn-ghost flex items-center gap-2"
+              on:click={handleConnectDropbox}
+              disabled={$syncConnecting || $syncInProgress || !$syncOnline}
+            >
+              <Cloud size={16} />
+              {$syncConnecting ? "Connecting..." : "Connect Dropbox"}
+            </button>
+          {/if}
         </div>
 
         <div>
@@ -258,20 +274,6 @@
             bind:value={syncRemoteNotesRoot}
             placeholder="/todo-productivity-notes"
           />
-        </div>
-
-        <div class="text-sm">
-          <p class="text-gray-400">
-            Token status:
-            {#if $syncHasToken}
-              <span class="text-green-400 font-medium"> configured</span>
-            {:else}
-              <span class="text-error font-medium"> missing</span>
-            {/if}
-          </p>
-          {#if !$syncOnline}
-            <p class="text-yellow-400 mt-1">Offline. Sync disabled until connection returns.</p>
-          {/if}
         </div>
 
         <div class="flex gap-3">
@@ -449,7 +451,11 @@
 
       <div class="mb-5">
         <label class="block text-sm text-gray-400 mb-2">
-          Type <span class="font-bold text-on-surface bg-surface-lighter px-1.5 py-0.5 rounded">DELETE</span> to confirm:
+          Type
+          <span class="font-bold text-on-surface bg-surface-lighter px-1.5 py-0.5 rounded"
+          >DELETE</span
+          >
+          to confirm:
         </label>
         <input
           type="text"
@@ -468,7 +474,11 @@
       {/if}
 
       <div class="flex justify-end gap-3">
-        <button class="btn btn-ghost px-4 py-2" on:click={closeClearDataDialog} disabled={isClearing}>
+        <button
+          class="btn btn-ghost px-4 py-2"
+          on:click={closeClearDataDialog}
+          disabled={isClearing}
+        >
           Cancel
         </button>
         <button

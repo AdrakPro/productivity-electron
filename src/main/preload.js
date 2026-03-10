@@ -130,5 +130,7 @@ contextBridge.exposeInMainWorld("api", {
     setConfig: (config) => ipcRenderer.invoke("sync:setConfig", config),
     getStatus: () => ipcRenderer.invoke("sync:getStatus"),
     now: (opts) => ipcRenderer.invoke("sync:now", opts),
+    connectDropbox: () => ipcRenderer.invoke("sync:connectDropbox"),
+    disconnectDropbox: () => ipcRenderer.invoke("sync:disconnectDropbox"),
   },
 });

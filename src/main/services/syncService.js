@@ -1,8 +1,10 @@
-const { net } = require("electron");
+const { net, shell } = require("electron");
 const { Dropbox } = require("dropbox");
 const fetch = require("node-fetch");
 const fs = require("fs");
 const path = require("path");
+const http = require("http");
+const crypto = require("crypto");
 
 class SyncService {
   constructor({ db, settingsRepo }) {
@@ -17,24 +19,57 @@ class SyncService {
     return net.isOnline();
   }
 
-  getAccessToken() {
-    const fromSettings = this.settingsRepo.get("dropboxAccessToken", "");
-    if (fromSettings && String(fromSettings).trim()) {
-      return String(fromSettings).trim();
-    }
-    return process.env.DROPBOX_ACCESS_TOKEN || "";
+  getOAuthConfig() {
+    return {
+      appKey: process.env.DROPBOX_APP_KEY || "",
+      redirectUri: "http://127.0.0.1:53682/dropbox/callback",
+    };
+  }
+
+  base64Url(buffer) {
+    return buffer
+      .toString("base64")
+      .replace(/\+/g, "-")
+      .replace(/\//g, "_")
+      .replace(/=+$/, "");
+  }
+
+  sha256(input) {
+    return crypto.createHash("sha256").update(input).digest();
+  }
+
+  hasDropboxCredentials() {
+    const { appKey } = this.getOAuthConfig();
+    const refreshToken = this.settingsRepo
+      .get("dropboxRefreshToken", "")
+      .trim();
+    return !!(appKey && refreshToken);
   }
 
   getClient() {
-    const token = this.getAccessToken();
-    if (!token) return null;
-    return new Dropbox({ accessToken: token, fetch });
+    const { appKey } = this.getOAuthConfig();
+    const refreshToken = this.settingsRepo
+      .get("dropboxRefreshToken", "")
+      .trim();
+
+    if (appKey && refreshToken) {
+      return new Dropbox({
+        clientId: appKey,
+        refreshToken,
+        fetch,
+      });
+    }
+
+    return null;
   }
 
   getConfig() {
     return {
       enabled: !!this.settingsRepo.get("dropboxSyncEnabled", false),
-      accessToken: this.settingsRepo.get("dropboxAccessToken", ""),
+      accessToken: this.settingsRepo.get("dropboxAccessToken", ""), // legacy
+      appKey: this.settingsRepo.get("dropboxAppKey", ""),
+      appSecret: this.settingsRepo.get("dropboxAppSecret", ""),
+      refreshToken: this.settingsRepo.get("dropboxRefreshToken", ""),
       intervalMinutes: Number(
         this.settingsRepo.get("dropboxSyncIntervalMinutes", 15),
       ),
@@ -408,10 +443,139 @@ class SyncService {
     tx();
   }
 
+  async connectDropbox() {
+    const { appKey, redirectUri } = this.getOAuthConfig();
+    if (!appKey) {
+      throw new Error("Dropbox app key is missing on this build");
+    }
+
+    const state = crypto.randomBytes(16).toString("hex");
+    const codeVerifier = this.base64Url(crypto.randomBytes(32));
+    const codeChallenge = this.base64Url(this.sha256(codeVerifier));
+
+    const authUrl =
+      "https://www.dropbox.com/oauth2/authorize" +
+      `?client_id=${encodeURIComponent(appKey)}` +
+      `&response_type=code` +
+      `&token_access_type=offline` +
+      `&code_challenge_method=S256` +
+      `&code_challenge=${encodeURIComponent(codeChallenge)}` +
+      `&redirect_uri=${encodeURIComponent(redirectUri)}` +
+      `&state=${encodeURIComponent(state)}`;
+
+    const code = await new Promise((resolve, reject) => {
+      let done = false;
+
+      const finish = (fn, value) => {
+        if (done) return;
+        done = true;
+        try {
+          server.close();
+        } catch {}
+        fn(value);
+      };
+
+      const server = http.createServer((req, res) => {
+        try {
+          const url = new URL(req.url, "http://127.0.0.1:53682");
+          if (url.pathname !== "/dropbox/callback") {
+            res.statusCode = 404;
+            res.end("Not found");
+            return;
+          }
+
+          const returnedState = url.searchParams.get("state") || "";
+          const returnedCode = url.searchParams.get("code") || "";
+          const oauthError = url.searchParams.get("error");
+
+          if (oauthError) {
+            res.statusCode = 400;
+            res.end("Dropbox authorization failed. You can close this window.");
+            return finish(
+              reject,
+              new Error(`Dropbox OAuth error: ${oauthError}`),
+            );
+          }
+
+          if (!returnedCode || returnedState !== state) {
+            res.statusCode = 400;
+            res.end("Invalid OAuth response. You can close this window.");
+            return finish(reject, new Error("Invalid OAuth state/code"));
+          }
+
+          res.statusCode = 200;
+          res.setHeader("Content-Type", "text/html; charset=utf-8");
+          res.end("<h3>Dropbox connected. You can close this window.</h3>");
+          return finish(resolve, returnedCode);
+        } catch (e) {
+          return finish(reject, e);
+        }
+      });
+
+      server.listen(53682, "127.0.0.1", async () => {
+        await shell.openExternal(authUrl);
+      });
+
+      server.on("error", (e) => finish(reject, e));
+
+      setTimeout(() => {
+        finish(reject, new Error("Dropbox connect timed out"));
+      }, 120000);
+    });
+
+    const body = new URLSearchParams({
+      code,
+      grant_type: "authorization_code",
+      client_id: appKey,
+      code_verifier: codeVerifier,
+      redirect_uri: redirectUri,
+    });
+
+    const tokenRes = await fetch("https://api.dropboxapi.com/oauth2/token", {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: body.toString(),
+    });
+
+    if (!tokenRes.ok) {
+      const text = await tokenRes.text();
+      throw new Error(`Failed token exchange (${tokenRes.status}): ${text}`);
+    }
+
+    const tokenJson = await tokenRes.json();
+    const refreshToken = tokenJson.refresh_token;
+
+    if (!refreshToken) {
+      throw new Error("Dropbox did not return refresh_token");
+    }
+
+    this.settingsRepo.set("dropboxRefreshToken", refreshToken);
+    this.settingsRepo.set("dropboxConnectedAt", new Date().toISOString());
+    this.restartInterval();
+    return { ok: true };
+  }
+
+  async disconnectDropbox() {
+    try {
+      const dbx = this.getClient();
+      if (dbx) {
+        await dbx.authTokenRevoke();
+      }
+    } catch (e) {
+      console.warn("Dropbox revoke failed:", e?.message || e);
+    }
+
+    this.settingsRepo.set("dropboxRefreshToken", "");
+    this.settingsRepo.set("dropboxConnectedAt", "");
+    this.restartInterval();
+
+    return { ok: true };
+  }
+
   async syncNow({ pullFirst = false } = {}) {
     if (this.isSyncing) return { ok: false, message: "Already syncing" };
     if (!this.isOnline()) return { ok: false, message: "Offline" };
-    if (!this.getAccessToken())
+    if (!this.getClient())
       return { ok: false, message: "Dropbox token not configured" };
 
     this.isSyncing = true;
@@ -445,7 +609,7 @@ class SyncService {
   startInterval() {
     this.stopInterval();
     const cfg = this.getConfig();
-    if (!cfg.enabled || !this.getAccessToken()) return;
+    if (!cfg.enabled || !this.getClient()) return;
 
     const ms = Math.max(1, cfg.intervalMinutes) * 60 * 1000 * 2;
     this.intervalRef = setInterval(() => {

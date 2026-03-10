@@ -70,7 +70,7 @@ const mockApi = {
     }),
     updatePriority: async (id, priority) => ({ id, priority }),
   },
-   templates: {
+  templates: {
     getAll: async () => [],
     getById: async (id) => ({ id }),
     create: async (template) => ({ id: Date.now(), ...template }),
@@ -95,6 +95,8 @@ const mockApi = {
       hasToken: false,
     }),
     now: async () => ({ ok: true }),
+    connectDropbox: async () => ({ ok: true }),
+    disconnectDropbox: async () => ({ ok: true }),
   },
 };
 
@@ -313,5 +315,11 @@ export const syncApi = {
   },
   async now(opts = {}) {
     return api.sync.now(opts);
+  },
+  async connectDropbox() {
+    return api.sync.connectDropbox();
+  },
+  async disconnectDropbox() {
+    return api.sync.disconnectDropbox();
   },
 };
