@@ -5,6 +5,7 @@ const fs = require("fs");
 const path = require("path");
 const http = require("http");
 const crypto = require("crypto");
+const { loadAppConfig } = require("../config/appConfig.js");
 
 class SyncService {
   constructor({ db, settingsRepo }) {
@@ -20,8 +21,9 @@ class SyncService {
   }
 
   getOAuthConfig() {
+    const cfg = loadAppConfig();
     return {
-      appKey: process.env.DROPBOX_APP_KEY || "",
+      appKey: cfg.dropboxAppKey || "",
       redirectUri: "http://127.0.0.1:53682/dropbox/callback",
     };
   }

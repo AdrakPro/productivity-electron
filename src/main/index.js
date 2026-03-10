@@ -1,5 +1,3 @@
-require("dotenv").config();
-
 const { app, BrowserWindow, Tray, Menu } = require("electron");
 const path = require("path");
 const fs = require("fs");
@@ -7,6 +5,7 @@ const {
   initializeDatabase,
   closeDatabase,
 } = require("./database/connection.js");
+const { ensureInitialUserConfig } = require("./config/appConfig.js");
 const { runMigrations } = require("./database/migrations.js");
 const { registerAllHandlers } = require("./ipc/handlers.js");
 
@@ -138,9 +137,10 @@ function createTray() {
 }
 
 app.whenReady().then(async () => {
-  if (process.platform === "linux") {
-    app.setName("Todo Productivity");
-  }
+  const cfgPath = ensureInitialUserConfig();
+  console.log("Config initialized at:", cfgPath);
+
+  app.setName("Todo Productivity");
 
   try {
     const db = initializeDatabase();
