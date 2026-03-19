@@ -14,6 +14,7 @@
   let isEditing = false;
   let editTitle = subtask.title;
   let editIsReview = subtask.is_review ?? false;
+  let editDeadline = subtask.deadline ?? "";
 
   $: tags = getSubtaskTagsByIds(subtask.tags || []);
 
@@ -50,6 +51,8 @@
 
   function startEdit() {
     editTitle = subtask.title;
+    editDeadline = subtask.deadline ?? "";
+    editIsReview = subtask.is_review ?? false;
     isEditing = true;
   }
 
@@ -59,6 +62,7 @@
         subtaskId: subtask.id,
         title: editTitle.trim(),
         is_review: editIsReview,
+        deadline: editIsReview ? null : editDeadline || null,
       });
     }
     isEditing = false;
@@ -101,6 +105,25 @@
         inputClass="text-sm py-1"
         on:keydown="{handleKeydown}"
       />
+      {#if isGlobal}
+        <input
+          type="date"
+          class="input text-xs py-0.5 flex-shrink-0"
+          bind:value="{editDeadline}"
+          title="Deadline (disabled for review tasks)"
+          disabled="{editIsReview}"
+        />
+        {#if editDeadline && !editIsReview}
+          <button
+            type="button"
+            class="text-gray-500 hover:text-error flex-shrink-0"
+            on:click="{() => (editDeadline = '')}"
+            title="Clear deadline"
+          >
+            <X size="{12}" />
+          </button>
+        {/if}
+      {/if}
       <button
         class="p-1 rounded hover:bg-surface-lighter flex-shrink-0"
         on:click="{saveEdit}"
@@ -114,7 +137,7 @@
         <X size="{14}" class="text-gray-500" />
       </button>
       <label class="flex items-center gap-1.5 cursor-pointer" title="Mark for spaced-repetition review">
-        <input type="checkbox" bind:checked={editIsReview} class="rounded" />
+        <input type="checkbox" bind:checked={editIsReview} class="rounded" on:change="{() => { if (editIsReview) editDeadline = ''; }}" />
         <BookOpen size={13} class="text-indigo-400" />
         <span class="text-xs text-gray-400">Review</span>
       </label>

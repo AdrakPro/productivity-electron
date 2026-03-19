@@ -97,6 +97,7 @@ const mockApi = {
     now: async () => ({ ok: true }),
     connectDropbox: async () => ({ ok: true }),
     disconnectDropbox: async () => ({ ok: true }),
+    revertToBackup: async () => ({ ok: true }),
   },
 };
 
@@ -321,5 +322,8 @@ export const syncApi = {
   },
   async disconnectDropbox() {
     return api.sync.disconnectDropbox();
+  },
+  async revertToBackup() {
+    return api.sync.revertToBackup();
   },
 };

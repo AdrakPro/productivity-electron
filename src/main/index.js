@@ -6,7 +6,7 @@ const {
   closeDatabase,
 } = require("./database/connection.js");
 const { ensureInitialUserConfig } = require("./config/appConfig.js");
-const { runMigrations } = require("./database/migrations.js");
+const { initializeSchema } = require("./database/schema.js");
 const { registerAllHandlers } = require("./ipc/handlers.js");
 
 let mainWindow = null;
@@ -144,7 +144,7 @@ app.whenReady().then(async () => {
 
   try {
     const db = initializeDatabase();
-    runMigrations(db);
+    initializeSchema(db);
     const { syncService} = registerAllHandlers(db);
     createWindow();
 

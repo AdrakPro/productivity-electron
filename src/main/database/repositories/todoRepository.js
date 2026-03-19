@@ -1,3 +1,5 @@
+const { randomUUID } = require("crypto");
+
 /**
  * Todo Repository - handles all todo-related database operations
  */
@@ -52,8 +54,8 @@ class TodoRepository {
       `),
 
       create: this.db.prepare(`
-        INSERT INTO todos (title, description, due_date, is_global, priority, labels, created_at, updated_at)
-        VALUES (@title, @description, @due_date, @is_global, @priority, @labels, datetime('now'), datetime('now'))
+        INSERT INTO todos (id, title, description, due_date, is_global, priority, labels, created_at, updated_at)
+        VALUES (@id, @title, @description, @due_date, @is_global, @priority, @labels, datetime('now'), datetime('now'))
       `),
 
       update: this.db.prepare(`
@@ -122,7 +124,9 @@ class TodoRepository {
   }
 
   create(todo) {
-    const result = this.statements.create.run({
+    const id = randomUUID();
+    this.statements.create.run({
+      id,
       title: todo.title,
       description: todo.description || null,
       due_date: todo.due_date || null,
@@ -131,7 +135,7 @@ class TodoRepository {
       labels: JSON.stringify(todo.labels || []),
     });
 
-    return this.getById(result.lastInsertRowid);
+    return this.getById(id);
   }
 
   update(id, updates) {

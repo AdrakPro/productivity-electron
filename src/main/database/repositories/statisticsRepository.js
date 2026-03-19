@@ -1,3 +1,5 @@
+const { randomUUID } = require("crypto");
+
 /**
  * Statistics Repository - handles statistics and streak tracking
  */
@@ -45,14 +47,14 @@ class StatisticsRepository {
       `),
 
       upsertStreak: this.db.prepare(`
-        INSERT INTO streaks (date, completed_count, created_at)
-        VALUES (@date, @completed_count, datetime('now'))
+        INSERT INTO streaks (id, date, completed_count, created_at)
+        VALUES (@id, @date, @completed_count, datetime('now'))
         ON CONFLICT(date) DO UPDATE SET completed_count = @completed_count
       `),
 
       incrementStreakCount: this.db.prepare(`
-        INSERT INTO streaks (date, completed_count, created_at)
-        VALUES (@date, 1, datetime('now'))
+        INSERT INTO streaks (id, date, completed_count, created_at)
+        VALUES (@id, @date, 1, datetime('now'))
         ON CONFLICT(date) DO UPDATE SET completed_count = completed_count + 1
       `),
     };
@@ -87,7 +89,7 @@ class StatisticsRepository {
   }
 
   recordCompletion(date) {
-    this.statements.incrementStreakCount.run({ date });
+    this.statements.incrementStreakCount.run({ id: randomUUID(), date });
     this.incrementCompleted(date);
     this.calculateStreak(date);
     return this.get();

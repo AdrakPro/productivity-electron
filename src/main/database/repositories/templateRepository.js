@@ -1,3 +1,5 @@
+const { randomUUID } = require("crypto");
+
 class TemplateRepository {
   constructor(db) {
     this.db = db;
@@ -11,8 +13,8 @@ class TemplateRepository {
       ),
       getById: this.db.prepare("SELECT * FROM templates WHERE id = ?"),
       create: this.db.prepare(`
-        INSERT INTO templates (name, description, tasks, created_at, updated_at)
-        VALUES (?, ?, ?, datetime('now'), datetime('now'))
+        INSERT INTO templates (id, name, description, tasks, created_at, updated_at)
+        VALUES (?, ?, ?, ?, datetime('now'), datetime('now'))
       `),
       update: this.db.prepare(`
         UPDATE templates SET name = ?, description = ?, tasks = ?, updated_at = datetime('now')
@@ -35,8 +37,9 @@ class TemplateRepository {
   }
 
   create({ name, description, tasks }) {
-    this.statements.create.run(name, description, JSON.stringify(tasks));
-    return this.getAll()[0];
+    const id = randomUUID();
+    this.statements.create.run(id, name, description, JSON.stringify(tasks));
+    return this.getById(id);
   }
 
   update(id, { name, description, tasks }) {

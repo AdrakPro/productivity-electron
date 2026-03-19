@@ -132,5 +132,6 @@ contextBridge.exposeInMainWorld("api", {
     now: (opts) => ipcRenderer.invoke("sync:now", opts),
     connectDropbox: () => ipcRenderer.invoke("sync:connectDropbox"),
     disconnectDropbox: () => ipcRenderer.invoke("sync:disconnectDropbox"),
+    revertToBackup: () => ipcRenderer.invoke("sync:revertToBackup"),
   },
 });
