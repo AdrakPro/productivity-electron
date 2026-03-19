@@ -14,6 +14,8 @@ export const syncInProgress = writable(false);
 export const syncHasToken = writable(false);
 export const syncError = writable(null);
 export const syncConnecting = writable(false);
+export const syncLastSyncAt = writable(null);
+export const syncReverting = writable(false);
 
 let statusPollTimer = null;
 
@@ -98,6 +100,7 @@ export async function refreshSyncStatus(silent = true) {
     syncOnline.set(!!st.online);
     syncInProgress.set(!!st.syncing);
     syncHasToken.set(!!st.hasToken);
+    syncLastSyncAt.set(st.lastSyncAt || null);
 
     if (!silent && !st.hasToken) {
       info("Dropbox token is missing");
@@ -130,6 +133,31 @@ export async function synchronizeNow(opts = {}) {
     throw e;
   } finally {
     syncInProgress.set(false);
+    await refreshSyncStatus(true);
+  }
+}
+
+export async function revertToBackup() {
+  syncError.set(null);
+  syncReverting.set(true);
+
+  try {
+    const res = await syncApi.revertToBackup();
+    if (res?.ok) {
+      success("Reverted to backup from Dropbox");
+    } else {
+      const msg = res?.message || "Revert did not complete";
+      syncError.set(msg);
+      toastError(msg);
+    }
+    return res;
+  } catch (e) {
+    const msg = e.message || "Revert to backup failed";
+    syncError.set(msg);
+    toastError(msg);
+    throw e;
+  } finally {
+    syncReverting.set(false);
     await refreshSyncStatus(true);
   }
 }

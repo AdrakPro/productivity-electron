@@ -13,6 +13,7 @@
     Trash2,
     AlertTriangle,
     RefreshCw,
+    RotateCcw,
     Cloud,
   } from "lucide-svelte";
   import {
@@ -35,10 +36,13 @@
     syncHasToken,
     syncInProgress,
     syncConnecting,
+    syncLastSyncAt,
+    syncReverting,
     loadSyncConfig,
     saveSyncConfig,
     refreshSyncStatus,
     synchronizeNow,
+    revertToBackup,
     connectDropbox,
     disconnectDropbox,
   } from "$lib/stores/syncStore.js";
@@ -294,6 +298,22 @@
             <RefreshCw size={16} class={$syncInProgress ? "animate-spin" : ""} />
             {$syncInProgress ? "Synchronizing..." : "Synchronize now"}
           </button>
+
+          <button
+            class="btn btn-ghost flex items-center gap-2 text-yellow-400 hover:text-yellow-300"
+            on:click={revertToBackup}
+            disabled={$syncReverting || $syncInProgress || !$syncOnline || !$syncHasToken}
+            title="Restore the state from the Dropbox backup created before the last sync"
+          >
+            <RotateCcw size={16} class={$syncReverting ? "animate-spin" : ""} />
+            {$syncReverting ? "Reverting..." : "Revert to backup"}
+          </button>
+
+          {#if $syncLastSyncAt}
+            <p class="text-xs text-gray-500">
+              Last sync: {new Date($syncLastSyncAt).toLocaleString()}
+            </p>
+          {/if}
         </div>
       </div>
     </div>

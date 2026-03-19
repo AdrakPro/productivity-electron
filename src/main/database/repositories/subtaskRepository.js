@@ -1,3 +1,5 @@
+const { randomUUID } = require("crypto");
+
 /**
  * Subtask Repository - handles all subtask-related database operations
  */
@@ -20,8 +22,8 @@ class SubtaskRepository {
       `),
 
       create: this.db.prepare(`
-        INSERT INTO subtasks (todo_id, title, is_review, sort_order, deadline, tags, created_at)
-        VALUES (@todo_id, @title, @is_review, @sort_order, @deadline, @tags, datetime('now'))
+        INSERT INTO subtasks (id, todo_id, title, is_review, sort_order, deadline, tags, created_at)
+        VALUES (@id, @todo_id, @title, @is_review, @sort_order, @deadline, @tags, datetime('now'))
       `),
 
       update: this.db.prepare(`
@@ -72,8 +74,10 @@ class SubtaskRepository {
   create(todoId, title, deadline, tags, is_review = false) {
     const maxOrder = this.statements.getMaxSortOrder.get(todoId);
     const sortOrder = (maxOrder?.max_order ?? -1) + 1;
+    const id = randomUUID();
 
-    const result = this.statements.create.run({
+    this.statements.create.run({
+      id,
       todo_id: todoId,
       title,
       is_review: is_review ? 1 : 0,
@@ -82,7 +86,7 @@ class SubtaskRepository {
       tags: JSON.stringify(tags || []),
     });
 
-    return this.getById(result.lastInsertRowid);
+    return this.getById(id);
   }
 
   _parseSubtask(subtask) {

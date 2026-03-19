@@ -150,11 +150,11 @@
   }
 
   async function handleSubtaskEdit(event) {
-    const { subtaskId, title, is_review } = event.detail;
+    const { subtaskId, title, is_review, deadline } = event.detail;
     const subtask = todo.subtasks.find((s) => s.id === subtaskId);
     const prevIsReview = subtask?.is_review ?? false;
 
-    await updateSubtask(todo.id, subtaskId, { title, is_review });
+    await updateSubtask(todo.id, subtaskId, { title, is_review, deadline: deadline ?? null });
 
     if (is_review && !prevIsReview) {
       const reviewDate = new Date();

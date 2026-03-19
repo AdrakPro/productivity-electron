@@ -1,3 +1,5 @@
+const { randomUUID } = require("crypto");
+
 /**
  * Review Repository - handles spaced-repetition review scheduling
  */
@@ -64,8 +66,8 @@ class ReviewRepository {
       `),
 
       create: this.db.prepare(`
-        INSERT INTO reviews (todo_id, subtask_id, review_number, review_date, priority, created_at)
-        VALUES (@todo_id, @subtask_id, @review_number, @review_date, @priority, datetime('now'))
+        INSERT INTO reviews (id, todo_id, subtask_id, subtask_title, review_number, review_date, priority, created_at)
+        VALUES (@id, @todo_id, @subtask_id, @subtask_title, @review_number, @review_date, @priority, datetime('now'))
       `),
 
       deleteBySubtaskId: this.db.prepare(`
@@ -115,21 +117,17 @@ class ReviewRepository {
   }
 
   create(todoId, subtaskId, subtaskTitle, reviewNumber, reviewDate, priority) {
-    const result = this.db
-      .prepare(
-        `INSERT INTO reviews 
-      (todo_id, subtask_id, subtask_title, review_number, review_date, priority, created_at)
-     VALUES (?, ?, ?, ?, ?, ?, datetime('now'))`,
-      )
-      .run(
-        todoId,
-        subtaskId,
-        subtaskTitle,
-        reviewNumber,
-        reviewDate,
-        priority || "none",
-      );
-    return this.getById(result.lastInsertRowid);
+    const id = randomUUID();
+    this.statements.create.run({
+      id,
+      todo_id: todoId,
+      subtask_id: subtaskId || null,
+      subtask_title: subtaskTitle || null,
+      review_number: reviewNumber,
+      review_date: reviewDate,
+      priority: priority || "none",
+    });
+    return this.getById(id);
   }
 
   complete(id) {
@@ -145,12 +143,26 @@ class ReviewRepository {
       const nextDate = new Date();
       nextDate.setDate(nextDate.getDate() + 7);
       const nextDateStr = nextDate.toISOString().split("T")[0];
-      nextReview = this.create(review.todo_id, 2, nextDateStr, review.priority);
+      nextReview = this.create(
+        review.todo_id,
+        review.subtask_id,
+        review.subtask_title,
+        2,
+        nextDateStr,
+        review.priority,
+      );
     } else if (review.review_number === 2) {
       const nextDate = new Date();
       nextDate.setDate(nextDate.getDate() + 14);
       const nextDateStr = nextDate.toISOString().split("T")[0];
-      nextReview = this.create(review.todo_id, 3, nextDateStr, review.priority);
+      nextReview = this.create(
+        review.todo_id,
+        review.subtask_id,
+        review.subtask_title,
+        3,
+        nextDateStr,
+        review.priority,
+      );
     }
     // review_number === 3: no more reviews
 
