@@ -9,6 +9,9 @@ const { ensureInitialUserConfig } = require("./config/appConfig.js");
 const { runMigrations } = require("./database/migrations.js");
 const { registerAllHandlers } = require("./ipc/handlers.js");
 
+const dns = require('dns');
+dns.setDefaultResultOrder('ipv4first');
+
 let mainWindow = null;
 let tray = null;
 
