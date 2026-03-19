@@ -48,7 +48,7 @@ function registerAllHandlers(db) {
 
   const syncService = new SyncService({
     db,
-    settingsRepo
+    settingsRepo,
   });
   registerSyncHandlers(syncService);
   syncService.startInterval();

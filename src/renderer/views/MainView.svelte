@@ -25,5 +25,5 @@
   </div>
 
   <!-- Todo List -->
-  <TodoList bind:this={todoListRef} />
+  <TodoList bind:this="{todoListRef}" />
 </div>

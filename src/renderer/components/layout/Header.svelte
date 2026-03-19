@@ -54,14 +54,14 @@
     <div class="flex-1">
       <button
         class="btn btn-ghost flex items-center gap-2 px-3 py-2"
-        on:click={toggleViewMode}
+        on:click="{toggleViewMode}"
         title="Switch to {$viewMode === 'daily' ? 'Global' : 'Daily'} view"
       >
         {#if $viewMode === "daily"}
-          <Calendar size={20} class="text-primary" />
+          <Calendar size="{20}" class="text-primary" />
           <span class="text-sm font-medium">Daily</span>
         {:else}
-          <Globe size={20} class="text-secondary" />
+          <Globe size="{20}" class="text-secondary" />
           <span class="text-sm font-medium">Global</span>
         {/if}
       </button>
@@ -73,9 +73,9 @@
         class="btn btn-ghost flex items-center gap-2 {$currentPage === 'main'
           ? 'bg-surface-lighter text-primary'
           : ''}"
-        on:click={() => navigateTo("main")}
+        on:click="{() => navigateTo('main')}"
       >
-        <Home size={18} />
+        <Home size="{18}" />
         <span>Home</span>
       </button>
 
@@ -83,29 +83,31 @@
         class="btn btn-ghost flex items-center gap-2 {$currentPage === 'reviews'
           ? 'bg-surface-lighter text-primary'
           : ''}"
-        on:click={() => navigateTo("reviews")}
+        on:click="{() => navigateTo('reviews')}"
       >
-        <BookOpen size={18} />
+        <BookOpen size="{18}" />
         <span>Reviews</span>
       </button>
 
       <button
-        class="btn btn-ghost flex items-center gap-2 {$currentPage === 'templates'
+        class="btn btn-ghost flex items-center gap-2 {$currentPage ===
+        'templates'
           ? 'bg-surface-lighter text-primary'
           : ''}"
-        on:click={() => navigateTo("templates")}
+        on:click="{() => navigateTo('templates')}"
       >
-        <BarChart3 size={18} />
+        <BarChart3 size="{18}" />
         <span>Template</span>
       </button>
 
       <button
-        class="btn btn-ghost flex items-center gap-2 {$currentPage === 'statistics'
+        class="btn btn-ghost flex items-center gap-2 {$currentPage ===
+        'statistics'
           ? 'bg-surface-lighter text-primary'
           : ''}"
-        on:click={() => navigateTo("statistics")}
+        on:click="{() => navigateTo('statistics')}"
       >
-        <BarChart3 size={18} />
+        <BarChart3 size="{18}" />
         <span>Statistics</span>
       </button>
     </nav>
@@ -114,19 +116,22 @@
     <div class="flex-1 flex justify-end items-center gap-2">
       <button
         class="btn btn-ghost flex items-center gap-2 px-3 py-2"
-        on:click={handleSyncNow}
-        disabled={$syncInProgress || !$syncOnline || !$syncHasToken}
-        title={!$syncHasToken
-          ? "Missing DROPBOX_ACCESS_TOKEN"
+        on:click="{handleSyncNow}"
+        disabled="{$syncInProgress || !$syncOnline || !$syncHasToken}"
+        title="{!$syncHasToken
+          ? 'Missing DROPBOX_ACCESS_TOKEN'
           : !$syncOnline
-            ? "Offline"
-            : "Synchronize now"}
+            ? 'Offline'
+            : 'Synchronize now'}"
       >
         {#if !$syncOnline}
-          <CloudOff size={18} />
+          <CloudOff size="{18}" />
           <span class="text-sm">Offline</span>
         {:else}
-          <RefreshCw size={18} class={$syncInProgress ? "animate-spin" : ""} />
+          <RefreshCw
+            size="{18}"
+            class="{$syncInProgress ? 'animate-spin' : ''}"
+          />
           <span class="text-sm">
             {$syncInProgress ? "Synchronizing..." : "Synchronize now"}
           </span>
@@ -138,10 +143,10 @@
         'settings'
           ? 'bg-surface-lighter text-primary'
           : ''}"
-        on:click={() => navigateTo("settings")}
+        on:click="{() => navigateTo('settings')}"
         title="Settings"
       >
-        <Settings size={20} />
+        <Settings size="{20}" />
       </button>
     </div>
   </div>

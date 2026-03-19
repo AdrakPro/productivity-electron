@@ -62,7 +62,15 @@ function registerReviewHandlers(reviewRepo, statisticsRepo) {
 
   ipcMain.handle(
     "reviews:create",
-    async (event, todoId, subtaskId, subtask_title, reviewNumber, reviewDate, priority) => {
+    async (
+      event,
+      todoId,
+      subtaskId,
+      subtask_title,
+      reviewNumber,
+      reviewDate,
+      priority,
+    ) => {
       try {
         return reviewRepo.create(
           todoId,

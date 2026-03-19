@@ -75,5 +75,4 @@
  * @property {string} updated_at
  */
 
-
 export {};

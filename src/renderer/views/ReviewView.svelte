@@ -35,13 +35,15 @@
   function formatDateTime(dateTimeStr) {
     if (!dateTimeStr) return "";
     const date = new Date(dateTimeStr);
-    return date.toLocaleDateString("en-GB", {
-      day: "2-digit",
-      month: "2-digit",
-      year: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-    }).replace(/\//g, ".");
+    return date
+      .toLocaleDateString("en-GB", {
+        day: "2-digit",
+        month: "2-digit",
+        year: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+      })
+      .replace(/\//g, ".");
   }
 
   const reviewColors = {
@@ -117,14 +119,20 @@
                       <p class="font-medium text-on-surface truncate">
                         {review.subtask_title}
                       </p>
-                      <p class="text-xs text-error mt-0.5 flex items-center gap-1">
+                      <p
+                        class="text-xs text-error mt-0.5 flex items-center gap-1"
+                      >
                         <AlertCircle size="{12}" />
                         Overdue since {formatDate(review.review_date)}
                       </p>
                     </div>
                   </div>
                   <div class="flex items-center gap-2 flex-shrink-0">
-                    <span class="px-2 py-0.5 rounded text-xs {getPriorityById(review.priority)?.bgLight} {getPriorityById(review.priority)?.textColor}">
+                    <span
+                      class="px-2 py-0.5 rounded text-xs {getPriorityById(
+                        review.priority,
+                      )?.bgLight} {getPriorityById(review.priority)?.textColor}"
+                    >
                       {getPriorityById(review.priority)?.label}
                     </span>
                     <button
@@ -158,18 +166,16 @@
         <div class="space-y-3">
           {#each todayDates as date}
             {#each $reviewsByDate[date] as review}
-              <div
-                class="card border border-primary/30"
-              >
+              <div class="card border border-primary/30">
                 <div class="flex items-start justify-between gap-3">
                   <div class="flex items-start gap-3 flex-1 min-w-0">
-                      <span
-                        class="px-2 py-0.5 rounded text-xs text-white flex-shrink-0 {reviewColors[
-                          review.review_number
-                        ] || 'bg-gray-500'}"
-                      >
-                        {reviewLabels[review.review_number] || "Review"}
-                      </span>
+                    <span
+                      class="px-2 py-0.5 rounded text-xs text-white flex-shrink-0 {reviewColors[
+                        review.review_number
+                      ] || 'bg-gray-500'}"
+                    >
+                      {reviewLabels[review.review_number] || "Review"}
+                    </span>
                     <div class="min-w-0">
                       <p class="font-medium text-on-surface truncate">
                         {review.subtask_title}

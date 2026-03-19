@@ -5,9 +5,14 @@
     deleteTemplate,
     loadTemplates,
     templates,
-    updateTemplate
+    updateTemplate,
   } from "$lib/stores/templateStore.js";
-  import { addTodo, deleteTodo, loadTodos, todos } from "$lib/stores/todoStore.js";
+  import {
+    addTodo,
+    deleteTodo,
+    loadTodos,
+    todos,
+  } from "$lib/stores/todoStore.js";
   import { error as showError, success } from "$lib/stores/toastStore.js";
   import LabelsPicker from "$components/common/LabelsPicker.svelte";
   import PriorityPicker from "$components/common/PriorityPicker.svelte";
@@ -270,7 +275,7 @@
         {/each}
       </ul>
       <button class="btn btn-secondary mb-4" on:click="{addTask}"
-      >Add Task</button
+        >Add Task</button
       >
       <div class="flex gap-2 mt-2">
         <button class="btn btn-primary" on:click="{saveTemplate}">Save</button>
@@ -334,8 +339,8 @@
                       return i >= 0
                         ? weekdayShort[i]
                         : new Date(d).toLocaleDateString("en-US", {
-                          weekday: "short",
-                        });
+                            weekday: "short",
+                          });
                     })
                     .join(", ")}
                 </span>

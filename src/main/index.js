@@ -145,7 +145,7 @@ app.whenReady().then(async () => {
   try {
     const db = initializeDatabase();
     runMigrations(db);
-    const { syncService} = registerAllHandlers(db);
+    const { syncService } = registerAllHandlers(db);
     createWindow();
 
     setTimeout(() => {

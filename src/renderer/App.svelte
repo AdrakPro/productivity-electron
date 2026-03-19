@@ -31,7 +31,7 @@
 
     if (today !== lastCheckedDate) {
       console.log(
-          `Day changed from ${lastCheckedDate} to ${today}. Archiving old todos...`
+        `Day changed from ${lastCheckedDate} to ${today}. Archiving old todos...`,
       );
       archiveDailyTodos(lastCheckedDate);
       archiveOverdueGlobalTodos();
@@ -91,7 +91,7 @@
 </script>
 
 <!-- Listen for newTask event -->
-<KeyboardHandler on:newTask={handleNewTask} />
+<KeyboardHandler on:newTask="{handleNewTask}" />
 
 <div class="h-screen flex flex-col overflow-hidden">
   <Header />
@@ -101,7 +101,7 @@
 
     <main class="flex-1 overflow-auto p-4">
       {#if $currentPage === "main"}
-        <MainView bind:this={mainViewRef} />
+        <MainView bind:this="{mainViewRef}" />
       {:else if $currentPage === "templates"}
         <TemplatesView />
       {:else if $currentPage === "statistics"}

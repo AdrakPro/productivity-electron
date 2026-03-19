@@ -82,7 +82,15 @@
 
       <!-- Subtask Item -->
       <div class="flex-1">
-        <SubtaskItem {subtask} {readonly} {isGlobal} {isReview} on:toggle on:delete on:edit />
+        <SubtaskItem
+          {subtask}
+          {readonly}
+          {isGlobal}
+          {isReview}
+          on:toggle
+          on:delete
+          on:edit
+        />
       </div>
     </div>
   {/each}

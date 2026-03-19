@@ -120,21 +120,24 @@ function registerFileHandlers(settingsRepo) {
   });
 
   // Create new folder
-  ipcMain.handle("files:createFolder", async (event, parentPath, folderName) => {
-    try {
-      const folderPath = path.join(parentPath, folderName);
+  ipcMain.handle(
+    "files:createFolder",
+    async (event, parentPath, folderName) => {
+      try {
+        const folderPath = path.join(parentPath, folderName);
 
-      if (fs.existsSync(folderPath)) {
-        throw new Error("Folder already exists");
+        if (fs.existsSync(folderPath)) {
+          throw new Error("Folder already exists");
+        }
+
+        fs.mkdirSync(folderPath, { recursive: true });
+        return true;
+      } catch (error) {
+        console.error("Error creating folder:", error);
+        throw error;
       }
-
-      fs.mkdirSync(folderPath, { recursive: true });
-      return true;
-    } catch (error) {
-      console.error("Error creating folder:", error);
-      throw error;
-    }
-  });
+    },
+  );
 
   // Rename file or folder
   ipcMain.handle("files:rename", async (event, oldPath, newName) => {
@@ -183,7 +186,9 @@ function registerFileHandlers(settingsRepo) {
       }
 
       if (fs.existsSync(destPath)) {
-        throw new Error(`"${itemName}" already exists in the destination folder`);
+        throw new Error(
+          `"${itemName}" already exists in the destination folder`,
+        );
       }
 
       if (targetFolder.startsWith(sourcePath + path.sep)) {
@@ -272,7 +277,9 @@ function buildFileTree(dirPath, depth = 0, maxDepth = 10) {
 
   if (
     name.startsWith(".") ||
-    ["node_modules", "dist", "build", "__pycache__", ".git", ".svn"].includes(name)
+    ["node_modules", "dist", "build", "__pycache__", ".git", ".svn"].includes(
+      name,
+    )
   ) {
     return null;
   }
@@ -288,7 +295,7 @@ function buildFileTree(dirPath, depth = 0, maxDepth = 10) {
       const children = fs
         .readdirSync(dirPath)
         .map((child) =>
-          buildFileTree(path.join(dirPath, child), depth + 1, maxDepth)
+          buildFileTree(path.join(dirPath, child), depth + 1, maxDepth),
         )
         .filter(Boolean)
         .sort((a, b) => {
