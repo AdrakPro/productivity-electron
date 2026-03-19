@@ -9,6 +9,7 @@ function registerSyncHandlers(syncService) {
     online: syncService.isOnline(),
     syncing: syncService.isSyncing,
     hasToken: !!syncService.getClient(),
+    astSyncAt: syncService.settingsRepo.get("dropboxLastSyncAt", null),
   }));
   ipcMain.handle("sync:now", async (_e, opts) =>
     syncService.syncNow(opts || {}),
@@ -19,6 +20,10 @@ function registerSyncHandlers(syncService) {
   );
   ipcMain.handle("sync:disconnectDropbox", async () =>
     syncService.disconnectDropbox(),
+  );
+
+  ipcMain.handle("sync:revertToBackup", async () =>
+    syncService.revertToBackup(),
   );
 }
 

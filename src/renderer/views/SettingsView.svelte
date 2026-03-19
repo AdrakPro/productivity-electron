@@ -13,6 +13,7 @@
     Trash2,
     AlertTriangle,
     RefreshCw,
+    RotateCcw,
     Cloud,
   } from "lucide-svelte";
   import {
@@ -36,13 +37,15 @@
     syncInProgress,
     syncConnecting,
     loadSyncConfig,
+    syncLastSyncAt,
+    syncReverting,
+    revertToBackup,
     saveSyncConfig,
     refreshSyncStatus,
     synchronizeNow,
     connectDropbox,
     disconnectDropbox,
   } from "$lib/stores/syncStore.js";
-
   let fileInput;
 
   // Local sync form state
@@ -177,7 +180,7 @@
   <!-- Header -->
   <div class="mb-6">
     <h1 class="text-2xl font-bold text-on-surface flex items-center gap-2">
-      <Settings size={28} />
+      <Settings size="{28}" />
       Settings
     </h1>
     <p class="text-gray-400 text-sm mt-1">Configure your app preferences</p>
@@ -187,8 +190,10 @@
   <div class="space-y-6">
     <!-- Startup Section -->
     <div class="card animate-fadeIn">
-      <h3 class="text-sm font-medium text-gray-400 mb-4 flex items-center gap-2">
-        <Power size={16} />
+      <h3
+        class="text-sm font-medium text-gray-400 mb-4 flex items-center gap-2"
+      >
+        <Power size="{16}" />
         Startup
       </h3>
 
@@ -200,14 +205,19 @@
           </p>
         </div>
 
-        <ToggleSwitch checked={$settings.autoLaunch} on:change={handleAutoLaunchChange} />
+        <ToggleSwitch
+          checked="{$settings.autoLaunch}"
+          on:change="{handleAutoLaunchChange}"
+        />
       </div>
     </div>
 
     <!-- Dropbox Sync Section -->
     <div class="card animate-fadeIn" style="animation-delay: 25ms">
-      <h3 class="text-sm font-medium text-gray-400 mb-4 flex items-center gap-2">
-        <Cloud size={16} />
+      <h3
+        class="text-sm font-medium text-gray-400 mb-4 flex items-center gap-2"
+      >
+        <Cloud size="{16}" />
         Dropbox Synchronization
       </h3>
 
@@ -228,8 +238,8 @@
             <p class="text-sm text-green-400 mb-3">Connected</p>
             <button
               class="btn btn-ghost flex items-center gap-2"
-              on:click={handleDisconnectDropbox}
-              disabled={$syncConnecting || $syncInProgress}
+              on:click="{handleDisconnectDropbox}"
+              disabled="{$syncConnecting || $syncInProgress}"
             >
               Disconnect Dropbox
             </button>
@@ -237,41 +247,47 @@
             <p class="text-sm text-yellow-400 mb-3">Not connected</p>
             <button
               class="btn btn-ghost flex items-center gap-2"
-              on:click={handleConnectDropbox}
-              disabled={$syncConnecting || $syncInProgress || !$syncOnline}
+              on:click="{handleConnectDropbox}"
+              disabled="{$syncConnecting || $syncInProgress || !$syncOnline}"
             >
-              <Cloud size={16} />
+              <Cloud size="{16}" />
               {$syncConnecting ? "Connecting..." : "Connect Dropbox"}
             </button>
           {/if}
         </div>
 
         <div>
-          <label class="block text-sm text-gray-400 mb-2">Sync interval (minutes)</label>
+          <label class="block text-sm text-gray-400 mb-2"
+            >Sync interval (minutes)</label
+          >
           <input
             type="number"
             min="1"
             class="w-full bg-surface-lighter border border-surface-lighter rounded-lg px-3 py-2 text-on-surface"
-            bind:value={syncIntervalMinutes}
+            bind:value="{syncIntervalMinutes}"
           />
         </div>
 
         <div>
-          <label class="block text-sm text-gray-400 mb-2">Dropbox DB snapshot path</label>
+          <label class="block text-sm text-gray-400 mb-2"
+            >Dropbox DB snapshot path</label
+          >
           <input
             type="text"
             class="w-full bg-surface-lighter border border-surface-lighter rounded-lg px-3 py-2 text-on-surface"
-            bind:value={syncRemotePath}
+            bind:value="{syncRemotePath}"
             placeholder="/todo-productivity-sync.json"
           />
         </div>
 
         <div>
-          <label class="block text-sm text-gray-400 mb-2">Dropbox notes root folder</label>
+          <label class="block text-sm text-gray-400 mb-2"
+            >Dropbox notes root folder</label
+          >
           <input
             type="text"
             class="w-full bg-surface-lighter border border-surface-lighter rounded-lg px-3 py-2 text-on-surface"
-            bind:value={syncRemoteNotesRoot}
+            bind:value="{syncRemoteNotesRoot}"
             placeholder="/todo-productivity-notes"
           />
         </div>
@@ -279,29 +295,55 @@
         <div class="flex gap-3">
           <button
             class="btn btn-ghost flex items-center gap-2"
-            on:click={handleSaveSyncSettings}
-            disabled={syncSaving}
+            on:click="{handleSaveSyncSettings}"
+            disabled="{syncSaving}"
           >
-            <Cloud size={16} />
+            <Cloud size="{16}" />
             {syncSaving ? "Saving..." : "Save Sync Settings"}
           </button>
 
           <button
             class="btn btn-ghost flex items-center gap-2"
-            on:click={handleSyncNowFromSettings}
-            disabled={$syncInProgress || !$syncOnline || !$syncHasToken}
+            on:click="{handleSyncNowFromSettings}"
+            disabled="{$syncInProgress || !$syncOnline || !$syncHasToken}"
           >
-            <RefreshCw size={16} class={$syncInProgress ? "animate-spin" : ""} />
+            <RefreshCw
+              size="{16}"
+              class="{$syncInProgress ? 'animate-spin' : ''}"
+            />
             {$syncInProgress ? "Synchronizing..." : "Synchronize now"}
           </button>
+
+          <button
+            class="btn btn-ghost flex items-center gap-2 text-yellow-400 hover:text-yellow-300"
+            on:click="{revertToBackup}"
+            disabled="{$syncReverting ||
+              $syncInProgress ||
+              !$syncOnline ||
+              !$syncHasToken}"
+            title="Restore the state from the Dropbox backup created before the last sync"
+          >
+            <RotateCcw
+              size="{16}"
+              class="{$syncReverting ? 'animate-spin' : ''}"
+            />
+            {$syncReverting ? "Reverting..." : "Revert to backup"}
+          </button>
+          {#if $syncLastSyncAt}
+            <p class="text-xs text-gray-500">
+              Last sync: {new Date($syncLastSyncAt).toLocaleString()}
+            </p>
+          {/if}
         </div>
       </div>
     </div>
 
     <!-- File Explorer Section -->
     <div class="card animate-fadeIn" style="animation-delay: 50ms">
-      <h3 class="text-sm font-medium text-gray-400 mb-4 flex items-center gap-2">
-        <Folder size={16} />
+      <h3
+        class="text-sm font-medium text-gray-400 mb-4 flex items-center gap-2"
+      >
+        <Folder size="{16}" />
         File Explorer
       </h3>
 
@@ -314,17 +356,26 @@
 
           {#if $workingDirectory}
             <div class="flex items-center gap-2">
-              <div class="flex-1 bg-surface-lighter rounded-lg px-3 py-2 text-sm truncate">
+              <div
+                class="flex-1 bg-surface-lighter rounded-lg px-3 py-2 text-sm truncate"
+              >
                 <span class="text-gray-400">📁</span>
                 <span class="ml-2 text-on-surface">{$workingDirectory}</span>
               </div>
-              <button class="btn btn-ghost p-2" on:click={handleClearFolder} title="Remove folder">
-                <X size={18} />
+              <button
+                class="btn btn-ghost p-2"
+                on:click="{handleClearFolder}"
+                title="Remove folder"
+              >
+                <X size="{18}" />
               </button>
             </div>
           {:else}
-            <button class="btn btn-ghost flex items-center gap-2" on:click={handleSelectFolder}>
-              <FolderOpen size={18} />
+            <button
+              class="btn btn-ghost flex items-center gap-2"
+              on:click="{handleSelectFolder}"
+            >
+              <FolderOpen size="{18}" />
               Select Folder
             </button>
           {/if}
@@ -334,8 +385,10 @@
 
     <!-- Data Management Section -->
     <div class="card animate-fadeIn" style="animation-delay: 100ms">
-      <h3 class="text-sm font-medium text-gray-400 mb-4 flex items-center gap-2">
-        <Download size={16} />
+      <h3
+        class="text-sm font-medium text-gray-400 mb-4 flex items-center gap-2"
+      >
+        <Download size="{16}" />
         Data Management
       </h3>
 
@@ -347,22 +400,28 @@
           </p>
 
           <div class="flex gap-3">
-            <button class="btn btn-ghost flex items-center gap-2" on:click={handleExport}>
-              <Download size={18} />
+            <button
+              class="btn btn-ghost flex items-center gap-2"
+              on:click="{handleExport}"
+            >
+              <Download size="{18}" />
               Export Data
             </button>
 
-            <button class="btn btn-ghost flex items-center gap-2" on:click={handleImportClick}>
-              <Upload size={18} />
+            <button
+              class="btn btn-ghost flex items-center gap-2"
+              on:click="{handleImportClick}"
+            >
+              <Upload size="{18}" />
               Import Data
             </button>
 
             <input
-              bind:this={fileInput}
+              bind:this="{fileInput}"
               type="file"
               accept=".json"
               class="hidden"
-              on:change={handleFileSelected}
+              on:change="{handleFileSelected}"
             />
           </div>
         </div>
@@ -370,12 +429,15 @@
         <div class="pt-4 border-t border-surface-lighter">
           <p class="text-on-surface font-medium mb-2 text-error">Danger Zone</p>
           <p class="text-sm text-gray-500 mb-3">
-            Permanently delete all your data including todos, statistics, and settings.
-            This action cannot be undone.
+            Permanently delete all your data including todos, statistics, and
+            settings. This action cannot be undone.
           </p>
 
-          <button class="btn btn-danger flex items-center gap-2" on:click={openClearDataDialog}>
-            <Trash2 size={18} />
+          <button
+            class="btn btn-danger flex items-center gap-2"
+            on:click="{openClearDataDialog}"
+          >
+            <Trash2 size="{18}" />
             Clear All Data
           </button>
         </div>
@@ -384,8 +446,10 @@
 
     <!-- Keyboard Shortcuts -->
     <div class="card animate-fadeIn" style="animation-delay: 150ms">
-      <h3 class="text-sm font-medium text-gray-400 mb-4 flex items-center gap-2">
-        <Keyboard size={16} />
+      <h3
+        class="text-sm font-medium text-gray-400 mb-4 flex items-center gap-2"
+      >
+        <Keyboard size="{16}" />
         Keyboard Shortcuts
       </h3>
       <div class="space-y-2 text-sm">
@@ -404,8 +468,10 @@
 
     <!-- About Section -->
     <div class="card animate-fadeIn" style="animation-delay: 200ms">
-      <h3 class="text-sm font-medium text-gray-400 mb-4 flex items-center gap-2">
-        <Info size={16} />
+      <h3
+        class="text-sm font-medium text-gray-400 mb-4 flex items-center gap-2"
+      >
+        <Info size="{16}" />
         About
       </h3>
       <div class="space-y-3">
@@ -425,8 +491,8 @@
 {#if showClearDataDialog}
   <div
     class="fixed inset-0 bg-black/60 flex items-center justify-center z-50 animate-fadeIn"
-    on:click={closeClearDataDialog}
-    on:keydown={handleClearDialogKeydown}
+    on:click="{closeClearDataDialog}"
+    on:keydown="{handleClearDialogKeydown}"
     role="dialog"
     aria-modal="true"
     tabindex="-1"
@@ -437,7 +503,7 @@
     >
       <div class="flex items-center gap-3 mb-4">
         <div class="p-2 bg-error/20 rounded-lg">
-          <AlertTriangle size={24} class="text-error" />
+          <AlertTriangle size="{24}" class="text-error" />
         </div>
         <div>
           <h3 class="text-xl font-bold text-on-surface">Clear All Data</h3>
@@ -446,14 +512,17 @@
       </div>
 
       <div class="mb-5">
-        <p class="text-gray-300 mb-3">This will permanently delete all of your data:</p>
+        <p class="text-gray-300 mb-3">
+          This will permanently delete all of your data:
+        </p>
       </div>
 
       <div class="mb-5">
         <label class="block text-sm text-gray-400 mb-2">
           Type
-          <span class="font-bold text-on-surface bg-surface-lighter px-1.5 py-0.5 rounded"
-          >DELETE</span
+          <span
+            class="font-bold text-on-surface bg-surface-lighter px-1.5 py-0.5 rounded"
+            >DELETE</span
           >
           to confirm:
         </label>
@@ -461,8 +530,8 @@
           type="text"
           class="w-full bg-surface-lighter border border-surface-lighter rounded-lg px-4 py-2.5 text-on-surface"
           placeholder="Type DELETE here"
-          bind:value={clearDataConfirmText}
-          on:keydown={handleClearDialogKeydown}
+          bind:value="{clearDataConfirmText}"
+          on:keydown="{handleClearDialogKeydown}"
           autofocus
         />
       </div>
@@ -476,21 +545,21 @@
       <div class="flex justify-end gap-3">
         <button
           class="btn btn-ghost px-4 py-2"
-          on:click={closeClearDataDialog}
-          disabled={isClearing}
+          on:click="{closeClearDataDialog}"
+          disabled="{isClearing}"
         >
           Cancel
         </button>
         <button
           class="btn btn-danger px-4 py-2 flex items-center gap-2"
-          on:click={handleClearAllData}
-          disabled={isClearing || clearDataConfirmText !== "DELETE"}
+          on:click="{handleClearAllData}"
+          disabled="{isClearing || clearDataConfirmText !== 'DELETE'}"
         >
           {#if isClearing}
-            <RefreshCw size={16} class="animate-spin" />
+            <RefreshCw size="{16}" class="animate-spin" />
             Clearing...
           {:else}
-            <Trash2 size={16} />
+            <Trash2 size="{16}" />
             Clear All Data
           {/if}
         </button>
@@ -500,16 +569,16 @@
 {/if}
 
 <style>
-    .btn-danger {
-        background-color: rgba(207, 102, 121, 0.2);
-        color: #cf6679;
-        border: 1px solid rgba(207, 102, 121, 0.3);
-    }
-    .btn-danger:hover:not(:disabled) {
-        background-color: rgba(207, 102, 121, 0.3);
-    }
-    .btn-danger:disabled {
-        opacity: 0.5;
-        cursor: not-allowed;
-    }
+  .btn-danger {
+    background-color: rgba(207, 102, 121, 0.2);
+    color: #cf6679;
+    border: 1px solid rgba(207, 102, 121, 0.3);
+  }
+  .btn-danger:hover:not(:disabled) {
+    background-color: rgba(207, 102, 121, 0.3);
+  }
+  .btn-danger:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
 </style>

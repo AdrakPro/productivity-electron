@@ -5,6 +5,7 @@ const fs = require("fs");
 const path = require("path");
 const http = require("http");
 const crypto = require("crypto");
+const { randomUUID } = require("crypto");
 const { loadAppConfig } = require("../config/appConfig.js");
 
 class SyncService {
@@ -68,7 +69,7 @@ class SyncService {
   getConfig() {
     return {
       enabled: !!this.settingsRepo.get("dropboxSyncEnabled", false),
-      accessToken: this.settingsRepo.get("dropboxAccessToken", ""), // legacy
+      accessToken: this.settingsRepo.get("dropboxAccessToken", ""),
       appKey: this.settingsRepo.get("dropboxAppKey", ""),
       appSecret: this.settingsRepo.get("dropboxAppSecret", ""),
       refreshToken: this.settingsRepo.get("dropboxRefreshToken", ""),
@@ -130,7 +131,7 @@ class SyncService {
 
   buildPayload() {
     return {
-      meta: { version: 3, exportedAt: new Date().toISOString() },
+      meta: { version: 4, exportedAt: new Date().toISOString() },
       data: {
         todos: this.db.prepare("SELECT * FROM todos ORDER BY id ASC").all(),
         subtasks: this.db
@@ -151,14 +152,20 @@ class SyncService {
     };
   }
 
-  async downloadDbSnapshotFromDropbox() {
+  _getBackupPath(remotePath) {
+    const ext = path.posix.extname(remotePath);
+    const base = remotePath.slice(0, remotePath.length - ext.length);
+    return `${base}.backup${ext}`;
+  }
+
+  async downloadDbSnapshotFromDropbox(snapshotPath) {
     const dbx = this.getClient();
     if (!dbx) throw new Error("Dropbox token is not configured");
 
-    const { remotePath } = this.getConfig();
+    const targetPath = snapshotPath || this.getConfig().remotePath;
 
     try {
-      const res = await dbx.filesDownload({ path: remotePath });
+      const res = await dbx.filesDownload({ path: targetPath });
       const fileBinary = res?.result?.fileBinary;
       if (!fileBinary) return null;
       const text = Buffer.from(fileBinary).toString("utf-8");
@@ -170,11 +177,11 @@ class SyncService {
     }
   }
 
-  async uploadDbSnapshotToDropbox(payload) {
+  async uploadDbSnapshotToDropbox(payload, targetPath) {
     const dbx = this.getClient();
     if (!dbx) throw new Error("Dropbox token is not configured");
 
-    const { remotePath } = this.getConfig();
+    const remotePath = targetPath || this.getConfig().remotePath;
 
     await dbx.filesUpload({
       path: remotePath,
@@ -182,6 +189,54 @@ class SyncService {
       mute: true,
       contents: Buffer.from(JSON.stringify(payload, null, 2), "utf-8"),
     });
+  }
+
+  /**
+   * Save the current remote snapshot as a backup in Dropbox before overwriting.
+   */
+  async backupRemoteSnapshot() {
+    const { remotePath } = this.getConfig();
+    const backupPath = this._getBackupPath(remotePath);
+
+    try {
+      const existing = await this.downloadDbSnapshotFromDropbox(remotePath);
+      if (existing) {
+        await this.uploadDbSnapshotToDropbox(existing, backupPath);
+        console.log("Dropbox backup created at:", backupPath);
+        return true;
+      }
+    } catch (e) {
+      console.warn("Could not create Dropbox backup:", e?.message || e);
+    }
+    return false;
+  }
+
+  /**
+   * Revert local DB and remote snapshot to the last backup.
+   */
+  async revertToBackup() {
+    const dbx = this.getClient();
+    if (!dbx) throw new Error("Dropbox token is not configured");
+    if (!this.isOnline()) throw new Error("Offline");
+
+    const { remotePath } = this.getConfig();
+    const backupPath = this._getBackupPath(remotePath);
+
+    const backup = await this.downloadDbSnapshotFromDropbox(backupPath);
+    if (!backup) throw new Error("No backup found in Dropbox");
+
+    this.replaceLocalDbData(backup);
+    await this.uploadDbSnapshotToDropbox(backup, remotePath);
+
+    const workingDirectory =
+      backup?.data?.notes?.workingDirectory || this.getWorkingDirectoryPath();
+    if (workingDirectory) {
+      this.settingsRepo.set("workingDirectory", workingDirectory);
+      await this.downloadNotesDirectoryFromDropbox(workingDirectory);
+    }
+
+    this.settingsRepo.set("dropboxLastSyncAt", new Date().toISOString());
+    return { ok: true };
   }
 
   async ensureDropboxFolder(folderPath) {
@@ -280,7 +335,7 @@ class SyncService {
     let deleted = 0;
     let deleteSkippedByGuard = false;
 
-    const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB
+    const MAX_FILE_SIZE = 50 * 1024 * 1024;
 
     const localRelSet = new Set(
       localFiles.map((f) => f.relPath.replace(/\\/g, "/").toLowerCase()),
@@ -382,10 +437,8 @@ class SyncService {
       for (const t of d.todos || []) {
         this.db
           .prepare(
-            `
-          INSERT INTO todos (id,title,description,due_date,is_global,is_completed,is_archived,completed_at,created_at,updated_at,priority,labels)
-          VALUES (@id,@title,@description,@due_date,@is_global,@is_completed,@is_archived,@completed_at,@created_at,@updated_at,@priority,@labels)
-        `,
+            `INSERT INTO todos (id,title,description,due_date,is_global,is_completed,is_archived,completed_at,created_at,updated_at,priority,labels)
+             VALUES (@id,@title,@description,@due_date,@is_global,@is_completed,@is_archived,@completed_at,@created_at,@updated_at,@priority,@labels)`,
           )
           .run(t);
       }
@@ -393,10 +446,8 @@ class SyncService {
       for (const s of d.subtasks || []) {
         this.db
           .prepare(
-            `
-          INSERT INTO subtasks (id,todo_id,title,is_review,is_completed,sort_order,completed_at,created_at,deadline,tags)
-          VALUES (@id,@todo_id,@title,@is_review,@is_completed,@sort_order,@completed_at,@created_at,@deadline,@tags)
-        `,
+            `INSERT INTO subtasks (id,todo_id,title,is_review,is_completed,sort_order,completed_at,created_at,deadline,tags)
+             VALUES (@id,@todo_id,@title,@is_review,@is_completed,@sort_order,@completed_at,@created_at,@deadline,@tags)`,
           )
           .run(s);
       }
@@ -404,10 +455,8 @@ class SyncService {
       for (const r of d.reviews || []) {
         this.db
           .prepare(
-            `
-          INSERT INTO reviews (id,todo_id,subtask_id,subtask_title,round,review_date,priority,is_completed,completed_at,created_at,updated_at,review_number)
-          VALUES (@id,@todo_id,@subtask_id,@subtask_title,@round,@review_date,@priority,@is_completed,@completed_at,@created_at,@updated_at,@review_number)
-        `,
+            `INSERT INTO reviews (id,todo_id,subtask_id,subtask_title,round,review_date,priority,is_completed,completed_at,created_at,updated_at,review_number)
+             VALUES (@id,@todo_id,@subtask_id,@subtask_title,@round,@review_date,@priority,@is_completed,@completed_at,@created_at,@updated_at,@review_number)`,
           )
           .run(r);
       }
@@ -415,11 +464,9 @@ class SyncService {
       if (d.statistics) {
         this.db
           .prepare(
-            `
-          UPDATE statistics
-          SET total_completed=@total_completed,current_streak=@current_streak,longest_streak=@longest_streak,last_activity_date=@last_activity_date,total_reviews_completed=@total_reviews_completed
-          WHERE id=1
-        `,
+            `UPDATE statistics
+             SET total_completed=@total_completed,current_streak=@current_streak,longest_streak=@longest_streak,last_activity_date=@last_activity_date,total_reviews_completed=@total_reviews_completed
+             WHERE id=1`,
           )
           .run({
             total_completed: d.statistics.total_completed || 0,
@@ -433,12 +480,167 @@ class SyncService {
       for (const s of d.streaks || []) {
         this.db
           .prepare(
-            `
-          INSERT INTO streaks (id,date,completed_count,created_at)
-          VALUES (@id,@date,@completed_count,@created_at)
-        `,
+            `INSERT INTO streaks (id,date,completed_count,created_at)
+             VALUES (@id,@date,@completed_count,@created_at)`,
           )
           .run(s);
+      }
+    });
+
+    tx();
+  }
+
+  /**
+   * Returns true if any local record has been modified since lastSyncAt.
+   */
+  _localHasChangedSince(lastSyncAt) {
+    if (!lastSyncAt) return true;
+
+    try {
+      if (
+        this.db
+          .prepare("SELECT 1 FROM todos WHERE updated_at > ? LIMIT 1")
+          .get(lastSyncAt)
+      )
+        return true;
+      if (
+        this.db
+          .prepare("SELECT 1 FROM subtasks WHERE created_at > ? LIMIT 1")
+          .get(lastSyncAt)
+      )
+        return true;
+      if (
+        this.db
+          .prepare("SELECT 1 FROM reviews WHERE created_at > ? LIMIT 1")
+          .get(lastSyncAt)
+      )
+        return true;
+    } catch {
+      return true;
+    }
+
+    return false;
+  }
+
+  /**
+   * Merge remote snapshot data into the local database.
+   *   - Items only in remote  -> insert locally
+   *   - Items only in local   -> keep as-is
+   *   - Items in both with differing updated_at -> keep local copy, insert
+   *     remote copy with "[CONFLICT] " title prefix
+   */
+  _mergeRemoteIntoLocal(remote) {
+    if (!remote?.data) return;
+    const d = remote.data;
+
+    const tx = this.db.transaction(() => {
+      // ── Todos ──────────────────────────────────────────────────────────────
+      const localTodosMap = new Map(
+        this.db
+          .prepare("SELECT id, updated_at FROM todos")
+          .all()
+          .map((r) => [r.id, r]),
+      );
+
+      for (const rt of d.todos || []) {
+        const local = localTodosMap.get(rt.id);
+        if (!local) {
+          this.db
+            .prepare(
+              `INSERT OR IGNORE INTO todos (id,title,description,due_date,is_global,is_completed,is_archived,completed_at,created_at,updated_at,priority,labels)
+               VALUES (@id,@title,@description,@due_date,@is_global,@is_completed,@is_archived,@completed_at,@created_at,@updated_at,@priority,@labels)`,
+            )
+            .run(rt);
+        } else if (local.updated_at !== rt.updated_at) {
+          // Conflict: insert remote as a duplicate with conflict marker
+          const conflictId = randomUUID();
+          this.db
+            .prepare(
+              `INSERT INTO todos (id,title,description,due_date,is_global,is_completed,is_archived,completed_at,created_at,updated_at,priority,labels)
+               VALUES (@id,@title,@description,@due_date,@is_global,@is_completed,@is_archived,@completed_at,@created_at,@updated_at,@priority,@labels)`,
+            )
+            .run({ ...rt, id: conflictId, title: "[CONFLICT] " + rt.title });
+
+          // Reparent any remote subtasks for this todo to the conflict copy
+          for (const rs of d.subtasks || []) {
+            if (rs.todo_id === rt.id && !localTodosMap.has(rs.id)) {
+              const conflictSubId = randomUUID();
+              this.db
+                .prepare(
+                  `INSERT OR IGNORE INTO subtasks (id,todo_id,title,is_review,is_completed,sort_order,completed_at,created_at,deadline,tags)
+                   VALUES (@id,@todo_id,@title,@is_review,@is_completed,@sort_order,@completed_at,@created_at,@deadline,@tags)`,
+                )
+                .run({ ...rs, id: conflictSubId, todo_id: conflictId });
+            }
+          }
+        }
+        // else: same updated_at -> no change needed
+      }
+
+      // ── Subtasks (remote-only, parent already exists locally) ───────────────
+      const localSubIds = new Set(
+        this.db
+          .prepare("SELECT id FROM subtasks")
+          .all()
+          .map((r) => r.id),
+      );
+
+      for (const rs of d.subtasks || []) {
+        if (!localSubIds.has(rs.id)) {
+          const todoExists = this.db
+            .prepare("SELECT 1 FROM todos WHERE id = ?")
+            .get(rs.todo_id);
+          if (todoExists) {
+            this.db
+              .prepare(
+                `INSERT OR IGNORE INTO subtasks (id,todo_id,title,is_review,is_completed,sort_order,completed_at,created_at,deadline,tags)
+                 VALUES (@id,@todo_id,@title,@is_review,@is_completed,@sort_order,@completed_at,@created_at,@deadline,@tags)`,
+              )
+              .run(rs);
+          }
+        }
+      }
+
+      // ── Reviews (remote-only, parent todo exists locally) ───────────────────
+      const localRevIds = new Set(
+        this.db
+          .prepare("SELECT id FROM reviews")
+          .all()
+          .map((r) => r.id),
+      );
+
+      for (const rr of d.reviews || []) {
+        if (!localRevIds.has(rr.id)) {
+          const todoExists = this.db
+            .prepare("SELECT 1 FROM todos WHERE id = ?")
+            .get(rr.todo_id);
+          if (todoExists) {
+            this.db
+              .prepare(
+                `INSERT OR IGNORE INTO reviews (id,todo_id,subtask_id,subtask_title,round,review_date,priority,is_completed,completed_at,created_at,updated_at,review_number)
+                 VALUES (@id,@todo_id,@subtask_id,@subtask_title,@round,@review_date,@priority,@is_completed,@completed_at,@created_at,@updated_at,@review_number)`,
+              )
+              .run(rr);
+          }
+        }
+      }
+
+      // ── Streaks: keep the higher completed_count ─────────────────────────────
+      for (const rs of d.streaks || []) {
+        const localStreak = this.db
+          .prepare("SELECT id, completed_count FROM streaks WHERE date = ?")
+          .get(rs.date);
+        if (!localStreak) {
+          this.db
+            .prepare(
+              `INSERT OR IGNORE INTO streaks (id,date,completed_count,created_at) VALUES (@id,@date,@completed_count,@created_at)`,
+            )
+            .run(rs);
+        } else if (rs.completed_count > localStreak.completed_count) {
+          this.db
+            .prepare("UPDATE streaks SET completed_count = ? WHERE date = ?")
+            .run(rs.completed_count, rs.date);
+        }
       }
     });
 
@@ -574,6 +776,15 @@ class SyncService {
     return { ok: true };
   }
 
+  /**
+   * Smart sync with merge, backup, and conflict resolution:
+   *  1. Always back up the current remote snapshot before overwriting.
+   *  2. Compare remote exportedAt vs local lastSyncAt to determine who changed.
+   *  3. If only remote changed  -> pull (replace local).
+   *  4. If only local changed   -> push (replace remote).
+   *  5. If both changed         -> merge remote into local, then push merged result.
+   *  6. If neither changed      -> push local (keep remote fresh).
+   */
   async syncNow({ pullFirst = false } = {}) {
     if (this.isSyncing) return { ok: false, message: "Already syncing" };
     if (!this.isOnline()) return { ok: false, message: "Offline" };
@@ -582,9 +793,35 @@ class SyncService {
 
     this.isSyncing = true;
     try {
-      if (pullFirst) {
-        const remote = await this.downloadDbSnapshotFromDropbox();
-        if (remote) {
+      const lastSyncAt = this.settingsRepo.get("dropboxLastSyncAt", null);
+      const remote = await this.downloadDbSnapshotFromDropbox();
+
+      // Always create a backup of the current remote before any change
+      await this.backupRemoteSnapshot();
+
+      if (remote) {
+        const remoteExportedAt = remote?.meta?.exportedAt || null;
+        const remoteChanged =
+          !lastSyncAt || (remoteExportedAt && remoteExportedAt > lastSyncAt);
+        const localChanged = this._localHasChangedSince(lastSyncAt);
+
+        console.log(
+          `Sync: remoteChanged=${remoteChanged}, localChanged=${localChanged}, lastSyncAt=${lastSyncAt}`,
+        );
+
+        if (remoteChanged && localChanged) {
+          console.log("Sync: both changed - merging remote into local");
+          this._mergeRemoteIntoLocal(remote);
+
+          const workingDirectory =
+            remote?.data?.notes?.workingDirectory ||
+            this.getWorkingDirectoryPath();
+          if (workingDirectory) {
+            this.settingsRepo.set("workingDirectory", workingDirectory);
+            await this.downloadNotesDirectoryFromDropbox(workingDirectory);
+          }
+        } else if (remoteChanged && !localChanged) {
+          console.log("Sync: only remote changed - pulling");
           this.replaceLocalDbData(remote);
 
           const workingDirectory =
@@ -594,9 +831,14 @@ class SyncService {
             this.settingsRepo.set("workingDirectory", workingDirectory);
             await this.downloadNotesDirectoryFromDropbox(workingDirectory);
           }
+        } else {
+          console.log("Sync: local is newer or equal - pushing");
         }
+      } else {
+        console.log("Sync: no remote snapshot found - will push local");
       }
 
+      // Push final local state to remote
       const payload = this.buildPayload();
       await this.uploadDbSnapshotToDropbox(payload);
       const notesResult = await this.uploadNotesDirectoryToDropbox();

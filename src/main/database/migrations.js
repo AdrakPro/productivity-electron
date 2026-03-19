@@ -18,7 +18,7 @@ function runMigrations(db) {
       name: "001_create_todos_table",
       sql: `
         CREATE TABLE IF NOT EXISTS todos (
-          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          id TEXT PRIMARY KEY,
           title TEXT NOT NULL,
           description TEXT,
           due_date TEXT,
@@ -27,7 +27,10 @@ function runMigrations(db) {
           is_archived INTEGER DEFAULT 0,
           completed_at TEXT,
           created_at TEXT DEFAULT (datetime('now')),
-          updated_at TEXT DEFAULT (datetime('now'))
+          updated_at TEXT DEFAULT (datetime('now')),
+          priority TEXT DEFAULT 'none',
+          labels TEXT DEFAULT '[]',
+          is_review INTEGER DEFAULT 0
         );
         
         CREATE INDEX IF NOT EXISTS idx_todos_due_date ON todos(due_date);
@@ -39,14 +42,16 @@ function runMigrations(db) {
       name: "002_create_subtasks_table",
       sql: `
         CREATE TABLE IF NOT EXISTS subtasks (
-          id INTEGER PRIMARY KEY AUTOINCREMENT,
-          todo_id INTEGER NOT NULL,
+          id TEXT PRIMARY KEY,
+          todo_id TEXT NOT NULL,
           title TEXT NOT NULL,
           is_review INTEGER DEFAULT 0,
           is_completed INTEGER DEFAULT 0,
           sort_order INTEGER DEFAULT 0,
           completed_at TEXT,
           created_at TEXT DEFAULT (datetime('now')),
+          deadline TEXT,
+          tags TEXT DEFAULT '[]',
           FOREIGN KEY (todo_id) REFERENCES todos(id) ON DELETE CASCADE
         );
         
@@ -57,7 +62,7 @@ function runMigrations(db) {
       name: "003_create_streaks_table",
       sql: `
         CREATE TABLE IF NOT EXISTS streaks (
-          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          id TEXT PRIMARY KEY,
           date TEXT UNIQUE NOT NULL,
           completed_count INTEGER DEFAULT 0,
           created_at TEXT DEFAULT (datetime('now'))
@@ -74,11 +79,12 @@ function runMigrations(db) {
           total_completed INTEGER DEFAULT 0,
           current_streak INTEGER DEFAULT 0,
           longest_streak INTEGER DEFAULT 0,
-          last_activity_date TEXT
+          last_activity_date TEXT,
+          total_reviews_completed INTEGER DEFAULT 0
         );
         
-        INSERT OR IGNORE INTO statistics (id, total_completed, current_streak, longest_streak)
-        VALUES (1, 0, 0, 0);
+        INSERT OR IGNORE INTO statistics (id, total_completed, current_streak, longest_streak, total_reviews_completed)
+        VALUES (1, 0, 0, 0, 0);
       `,
     },
     {
@@ -119,10 +125,10 @@ function runMigrations(db) {
       name: "010_create_templates_table",
       sql: `
         CREATE TABLE IF NOT EXISTS templates (
-          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          id TEXT PRIMARY KEY,
           name TEXT NOT NULL,
           description TEXT,
-          tasks TEXT NOT NULL, -- JSON array [{title, description, priority, labels}]
+          tasks TEXT NOT NULL,
           created_at TEXT DEFAULT (datetime('now')),
           updated_at TEXT DEFAULT (datetime('now'))
         );
@@ -132,9 +138,9 @@ function runMigrations(db) {
       name: "011_create_reviews_table",
       sql: `
     CREATE TABLE IF NOT EXISTS reviews (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      todo_id INTEGER NOT NULL,
-      subtask_id INTEGER,
+      id TEXT PRIMARY KEY,
+      todo_id TEXT NOT NULL,
+      subtask_id TEXT,
       subtask_title TEXT,
       round INTEGER DEFAULT 1,
       review_date TEXT,
@@ -143,6 +149,7 @@ function runMigrations(db) {
       completed_at TEXT,
       created_at TEXT DEFAULT (datetime('now')),
       updated_at TEXT DEFAULT (datetime('now')),
+      review_number INTEGER DEFAULT 1,
       FOREIGN KEY (todo_id) REFERENCES todos(id) ON DELETE CASCADE,
       FOREIGN KEY (subtask_id) REFERENCES subtasks(id) ON DELETE CASCADE
     );

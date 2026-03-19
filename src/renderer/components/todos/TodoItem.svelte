@@ -93,7 +93,13 @@
     if (newSubtaskTitle.trim()) {
       const deadline = todo.is_global ? newSubtaskDeadline || null : null;
       const tags = todo.is_global ? newSubtaskTags : [];
-      const newSubtask = await addSubtask(todo.id, newSubtaskTitle.trim(), deadline, tags, newSubtaskIsReview);
+      const newSubtask = await addSubtask(
+        todo.id,
+        newSubtaskTitle.trim(),
+        deadline,
+        tags,
+        newSubtaskIsReview,
+      );
       newSubtask.is_review = newSubtaskIsReview;
       // If marked for review, create Review 1 for this subtask
       if (todo.is_global && newSubtaskIsReview) {
@@ -120,7 +126,7 @@
             newSubtask.title,
             1,
             reviewDateStr,
-            todo.priority || "none"
+            todo.priority || "none",
           );
 
           // 3. Refresh the reviews store
@@ -150,11 +156,15 @@
   }
 
   async function handleSubtaskEdit(event) {
-    const { subtaskId, title, is_review } = event.detail;
+    const { subtaskId, title, is_review, deadline } = event.detail;
     const subtask = todo.subtasks.find((s) => s.id === subtaskId);
     const prevIsReview = subtask?.is_review ?? false;
 
-    await updateSubtask(todo.id, subtaskId, { title, is_review });
+    await updateSubtask(todo.id, subtaskId, {
+      title,
+      is_review,
+      deadline: deadline ?? null,
+    });
 
     if (is_review && !prevIsReview) {
       const reviewDate = new Date();
@@ -166,7 +176,7 @@
         title,
         1,
         reviewDateStr,
-        todo.priority || "none"
+        todo.priority || "none",
       );
       await loadReviews();
     } else if (!is_review && prevIsReview) {
@@ -512,9 +522,7 @@
                     </button>
                   {/if}
                 </div>
-                <SubtaskTagsPicker
-                  bind:value="{newSubtaskTags}"
-                />
+                <SubtaskTagsPicker bind:value="{newSubtaskTags}" />
                 <label
                   class="flex items-center gap-1.5 cursor-pointer"
                   title="Mark for spaced-repetition review"

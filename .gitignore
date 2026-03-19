@@ -23,6 +23,8 @@ SHASUMS256.txt
 compile_commands.json
 .envrc
 /build
+dist-electron/
+dist/
 
 # npm package
 /npm/dist
