@@ -8,22 +8,10 @@ function registerSyncHandlers(syncService) {
   ipcMain.handle("sync:getStatus", async () => ({
     online: syncService.isOnline(),
     syncing: syncService.isSyncing,
-    hasToken: !!syncService.getClient(),
-    astSyncAt: syncService.settingsRepo.get("dropboxLastSyncAt", null),
+    lastSyncAt: syncService.settingsRepo.get("localBackupLastSyncAt", null),
   }));
   ipcMain.handle("sync:now", async (_e, opts) =>
     syncService.syncNow(opts || {}),
-  );
-
-  ipcMain.handle("sync:connectDropbox", async () =>
-    syncService.connectDropbox(),
-  );
-  ipcMain.handle("sync:disconnectDropbox", async () =>
-    syncService.disconnectDropbox(),
-  );
-
-  ipcMain.handle("sync:revertToBackup", async () =>
-    syncService.revertToBackup(),
   );
 }
 
