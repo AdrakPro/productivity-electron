@@ -1,21 +1,18 @@
 import { writable } from "svelte/store";
 import { syncApi } from "$lib/services/api.js";
-import { success, error as toastError, info } from "$lib/stores/toastStore.js";
+import { success, error as toastError } from "$lib/stores/toastStore.js";
 
 export const syncConfig = writable({
-  enabled: false,
-  intervalMinutes: 15,
-  remotePath: "/todo-productivity-sync.json",
-  remoteNotesRoot: "/todo-productivity-notes",
+  enabled: true,
+  intervalMinutes: 5,
+  backupFolderPath: "",
+  keepBackups: 5,
 });
 
 export const syncOnline = writable(true);
 export const syncInProgress = writable(false);
-export const syncHasToken = writable(false);
 export const syncError = writable(null);
-export const syncConnecting = writable(false);
 export const syncLastSyncAt = writable(null);
-export const syncReverting = writable(false);
 
 let statusPollTimer = null;
 
@@ -24,73 +21,12 @@ export async function loadSyncConfig() {
     const cfg = await syncApi.getConfig();
     syncConfig.set({
       enabled: !!cfg.enabled,
-      intervalMinutes: Number(cfg.intervalMinutes || 15),
-      remotePath: cfg.remotePath || "/todo-productivity-sync.json",
-      remoteNotesRoot: cfg.remoteNotesRoot || "/todo-productivity-notes",
+      intervalMinutes: Number(cfg.intervalMinutes || 5),
+      backupFolderPath: cfg.backupFolderPath || "",
+      keepBackups: Number(cfg.keepBackups || 5),
     });
   } catch (e) {
     syncError.set(e.message || "Failed to load sync configuration");
-  }
-}
-
-export async function revertToBackup() {
-  syncError.set(null);
-  syncReverting.set(true);
-  try {
-    const res = await syncApi.revertToBackup();
-    if (res?.ok) {
-      success("Reverted to backup from Dropbox");
-    } else {
-      const msg = res?.message || "Revert did not complete";
-      syncError.set(msg);
-      toastError(msg);
-    }
-    return res;
-  } catch (e) {
-    const msg = e.message || "Revert to backup failed";
-    syncError.set(msg);
-    toastError(msg);
-    throw e;
-  } finally {
-    syncReverting.set(false);
-    await refreshSyncStatus(true);
-  }
-}
-
-export async function connectDropbox() {
-  syncError.set(null);
-  syncConnecting.set(true);
-  try {
-    const res = await syncApi.connectDropbox();
-    if (res?.ok) {
-      success("Dropbox connected");
-      await refreshSyncStatus(true);
-    }
-    return res;
-  } catch (e) {
-    const msg = e.message || "Failed to connect Dropbox";
-    syncError.set(msg);
-    toastError(msg);
-    throw e;
-  } finally {
-    syncConnecting.set(false);
-  }
-}
-
-export async function disconnectDropbox() {
-  syncError.set(null);
-  try {
-    const res = await syncApi.disconnectDropbox();
-    if (res?.ok) {
-      info("Dropbox disconnected");
-      await refreshSyncStatus(true);
-    }
-    return res;
-  } catch (e) {
-    const msg = e.message || "Failed to disconnect Dropbox";
-    syncError.set(msg);
-    toastError(msg);
-    throw e;
   }
 }
 
@@ -98,24 +34,20 @@ export async function saveSyncConfig(partial) {
   syncError.set(null);
 
   const payload = {
-    dropboxSyncEnabled: !!partial.enabled,
-    dropboxSyncIntervalMinutes: Number(partial.intervalMinutes || 15),
-    dropboxSyncRemotePath:
-      partial.remotePath?.trim() || "/todo-productivity-sync.json",
-    dropboxNotesRootPath:
-      partial.remoteNotesRoot?.trim() || "/todo-productivity-notes",
+    localBackupFolderPath: partial.backupFolderPath?.trim() || "",
+    localBackupKeepCount: Number(partial.keepBackups || 5),
   };
 
   const cfg = await syncApi.setConfig(payload);
 
   syncConfig.set({
     enabled: !!cfg.enabled,
-    intervalMinutes: Number(cfg.intervalMinutes || 15),
-    remotePath: cfg.remotePath || "/todo-productivity-sync.json",
-    remoteNotesRoot: cfg.remoteNotesRoot || "/todo-productivity-notes",
+    intervalMinutes: Number(cfg.intervalMinutes || 5),
+    backupFolderPath: cfg.backupFolderPath || "",
+    keepBackups: Number(cfg.keepBackups || 5),
   });
 
-  success("Sync settings saved");
+  success("Backup settings saved");
 }
 
 export async function refreshSyncStatus(silent = true) {
@@ -123,12 +55,7 @@ export async function refreshSyncStatus(silent = true) {
     const st = await syncApi.getStatus();
     syncOnline.set(!!st.online);
     syncInProgress.set(!!st.syncing);
-    syncHasToken.set(!!st.hasToken);
     syncLastSyncAt.set(st.lastSyncAt || null);
-
-    if (!silent && !st.hasToken) {
-      info("Dropbox token is missing");
-    }
   } catch (e) {
     if (!silent) {
       toastError(e.message || "Failed to refresh sync status");
@@ -143,7 +70,7 @@ export async function synchronizeNow(opts = {}) {
   try {
     const res = await syncApi.now(opts);
     if (res?.ok) {
-      success("Synchronized with Dropbox");
+      success("Backup saved");
     } else {
       const msg = res?.message || "Sync did not complete";
       syncError.set(msg);

@@ -79,25 +79,24 @@ const mockApi = {
   },
   sync: {
     getConfig: async () => ({
-      enabled: false,
-      intervalMinutes: 15,
-      remotePath: "/todo-productivity-sync.json",
+      enabled: true,
+      intervalMinutes: 5,
+      backupFolderPath: "/tmp/todo-productivity-backups",
+      keepBackups: 5,
     }),
     setConfig: async (config) => ({
-      enabled: !!config.dropboxSyncEnabled,
-      intervalMinutes: Number(config.dropboxSyncIntervalMinutes || 15),
-      remotePath:
-        config.dropboxSyncRemotePath || "/todo-productivity-sync.json",
+      enabled: true,
+      intervalMinutes: 5,
+      backupFolderPath:
+        config.localBackupFolderPath || "/tmp/todo-productivity-backups",
+      keepBackups: Number(config.localBackupKeepCount || 5),
     }),
     getStatus: async () => ({
       online: typeof navigator !== "undefined" ? navigator.onLine : true,
       syncing: false,
-      hasToken: false,
+      lastSyncAt: null,
     }),
     now: async () => ({ ok: true }),
-    connectDropbox: async () => ({ ok: true }),
-    disconnectDropbox: async () => ({ ok: true }),
-    revertToBackup: async () => ({ ok: true }),
   },
 };
 
@@ -316,15 +315,5 @@ export const syncApi = {
   },
   async now(opts = {}) {
     return api.sync.now(opts);
-  },
-  async connectDropbox() {
-    return api.sync.connectDropbox();
-  },
-  async disconnectDropbox() {
-    return api.sync.disconnectDropbox();
-  },
-
-  async revertToBackup() {
-    return api.sync.revertToBackup();
   },
 };
