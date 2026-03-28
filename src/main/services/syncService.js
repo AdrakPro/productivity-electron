@@ -2,6 +2,9 @@ const { app } = require("electron");
 const fs = require("fs");
 const path = require("path");
 
+const BACKUP_INTERVAL_MINUTES = 5;
+const DEFAULT_KEEP_BACKUPS = 5;
+
 class SyncService {
   constructor({ db, settingsRepo }) {
     this.db = db;
@@ -19,16 +22,20 @@ class SyncService {
   }
 
   getConfig() {
-    const keepBackups = Number(this.settingsRepo.get("localBackupKeepCount", 5));
+    const keepBackups = Number(
+      this.settingsRepo.get("localBackupKeepCount", DEFAULT_KEEP_BACKUPS),
+    );
 
     return {
       enabled: true,
-      intervalMinutes: 5,
+      intervalMinutes: BACKUP_INTERVAL_MINUTES,
       backupFolderPath:
         this.settingsRepo.get("localBackupFolderPath", "") ||
         this.getDefaultBackupFolderPath(),
       keepBackups:
-        Number.isFinite(keepBackups) && keepBackups > 0 ? keepBackups : 5,
+        Number.isFinite(keepBackups) && keepBackups > 0
+          ? keepBackups
+          : DEFAULT_KEEP_BACKUPS,
     };
   }
 
@@ -44,7 +51,9 @@ class SyncService {
       const keepBackups = Number(config.localBackupKeepCount);
       this.settingsRepo.set(
         "localBackupKeepCount",
-        Number.isFinite(keepBackups) && keepBackups > 0 ? keepBackups : 5,
+        Number.isFinite(keepBackups) && keepBackups > 0
+          ? keepBackups
+          : DEFAULT_KEEP_BACKUPS,
       );
     }
 
@@ -239,7 +248,7 @@ class SyncService {
   startInterval() {
     this.stopInterval();
 
-    const ms = 5 * 60 * 1000;
+    const ms = BACKUP_INTERVAL_MINUTES * 60 * 1000;
     this.intervalRef = setInterval(() => {
       this.exportBackup();
     }, ms);
