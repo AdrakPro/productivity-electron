@@ -13,17 +13,17 @@ class SubtaskRepository {
     this.statements = {
       getByTodoId: this.db.prepare(`
         SELECT * FROM subtasks 
-        WHERE todo_id = ?
+        WHERE todo_id = ? AND deleted = 0
         ORDER BY sort_order ASC
       `),
 
       getById: this.db.prepare(`
-        SELECT * FROM subtasks WHERE id = ?
+        SELECT * FROM subtasks WHERE id = ? AND deleted = 0
       `),
 
       create: this.db.prepare(`
-        INSERT INTO subtasks (id, todo_id, title, is_review, sort_order, deadline, tags, created_at)
-        VALUES (@id, @todo_id, @title, @is_review, @sort_order, @deadline, @tags, datetime('now'))
+        INSERT INTO subtasks (id, todo_id, title, is_review, sort_order, deadline, tags, created_at, updated_at, deleted)
+        VALUES (@id, @todo_id, @title, @is_review, @sort_order, @deadline, @tags, datetime('now'), datetime('now'), 0)
       `),
 
       update: this.db.prepare(`
@@ -33,30 +33,37 @@ class SubtaskRepository {
             is_completed = @is_completed,
             completed_at = @completed_at,
             deadline = @deadline,
-            tags = @tags
+            tags = @tags,
+            updated_at = datetime('now')
         WHERE id = @id
       `),
 
       updateSortOrder: this.db.prepare(`
-        UPDATE subtasks SET sort_order = ? WHERE id = ?
+        UPDATE subtasks SET sort_order = ?, updated_at = datetime('now') WHERE id = ? AND deleted = 0
       `),
 
       delete: this.db.prepare(`
-        DELETE FROM subtasks WHERE id = ?
+        UPDATE subtasks
+        SET deleted = 1,
+            updated_at = datetime('now')
+        WHERE id = ? AND deleted = 0
       `),
 
       deleteByTodoId: this.db.prepare(`
-        DELETE FROM subtasks WHERE todo_id = ?
+        UPDATE subtasks
+        SET deleted = 1,
+            updated_at = datetime('now')
+        WHERE todo_id = ? AND deleted = 0
       `),
 
       getMaxSortOrder: this.db.prepare(`
-        SELECT MAX(sort_order) as max_order FROM subtasks WHERE todo_id = ?
+        SELECT MAX(sort_order) as max_order FROM subtasks WHERE todo_id = ? AND deleted = 0
       `),
 
       countByTodoId: this.db.prepare(`
         SELECT COUNT(*) as total,
                SUM(CASE WHEN is_completed = 1 THEN 1 ELSE 0 END) as completed
-        FROM subtasks WHERE todo_id = ?
+        FROM subtasks WHERE todo_id = ? AND deleted = 0
       `),
     };
   }

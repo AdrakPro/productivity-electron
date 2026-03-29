@@ -21,20 +21,23 @@ class StatisticsRepository {
             current_streak = @current_streak,
             longest_streak = @longest_streak,
             last_activity_date = @last_activity_date,
-            total_reviews_completed = @total_reviews_completed
+            total_reviews_completed = @total_reviews_completed,
+            updated_at = datetime('now')
         WHERE id = 1
       `),
 
       incrementCompleted: this.db.prepare(`
         UPDATE statistics 
         SET total_completed = total_completed + 1,
-            last_activity_date = @date
+            last_activity_date = @date,
+            updated_at = datetime('now')
         WHERE id = 1
       `),
 
       incrementReviewsCompleted: this.db.prepare(`
         UPDATE statistics 
-        SET total_reviews_completed = total_reviews_completed + 1
+        SET total_reviews_completed = total_reviews_completed + 1,
+            updated_at = datetime('now')
         WHERE id = 1
       `),
 
@@ -47,15 +50,15 @@ class StatisticsRepository {
       `),
 
       upsertStreak: this.db.prepare(`
-        INSERT INTO streaks (id, date, completed_count, created_at)
-        VALUES (@id, @date, @completed_count, datetime('now'))
-        ON CONFLICT(date) DO UPDATE SET completed_count = @completed_count
+        INSERT INTO streaks (id, date, completed_count, created_at, updated_at)
+        VALUES (@id, @date, @completed_count, datetime('now'), datetime('now'))
+        ON CONFLICT(date) DO UPDATE SET completed_count = @completed_count, updated_at = datetime('now')
       `),
 
       incrementStreakCount: this.db.prepare(`
-        INSERT INTO streaks (id, date, completed_count, created_at)
-        VALUES (@id, @date, 1, datetime('now'))
-        ON CONFLICT(date) DO UPDATE SET completed_count = completed_count + 1
+        INSERT INTO streaks (id, date, completed_count, created_at, updated_at)
+        VALUES (@id, @date, 1, datetime('now'), datetime('now'))
+        ON CONFLICT(date) DO UPDATE SET completed_count = completed_count + 1, updated_at = datetime('now')
       `),
     };
   }
