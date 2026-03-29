@@ -176,9 +176,9 @@ function runMigrations(db) {
     ALTER TABLE templates ADD COLUMN deleted INTEGER DEFAULT 0;
     ALTER TABLE streaks ADD COLUMN updated_at TEXT;
     ALTER TABLE statistics ADD COLUMN updated_at TEXT;
-    UPDATE subtasks SET updated_at = COALESCE(updated_at, created_at, datetime('now'));
-    UPDATE streaks SET updated_at = COALESCE(updated_at, created_at, datetime('now'));
-    UPDATE statistics SET updated_at = COALESCE(updated_at, datetime('now'));
+    UPDATE subtasks SET updated_at = COALESCE(created_at, datetime('now'));
+    UPDATE streaks SET updated_at = COALESCE(created_at, datetime('now'));
+    UPDATE statistics SET updated_at = datetime('now');
   `,
     },
   ];

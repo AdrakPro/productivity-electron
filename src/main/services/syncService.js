@@ -158,6 +158,7 @@ class SyncService {
   }
 
   _toMillis(ts) {
+    if (typeof ts === "number") return Number.isFinite(ts) ? ts : 0;
     if (!ts || typeof ts !== "string") return 0;
     const normalized = ts.includes("T") ? ts : ts.replace(" ", "T") + "Z";
     const parsed = Date.parse(normalized);
@@ -310,7 +311,7 @@ class SyncService {
         streaks: this._mergeRecordArraysByKey(
           baseData.streaks,
           incomingData.streaks,
-          "date",
+          "date", // streak rows are logically unique by date
         ),
         statistics: mergedStatistics,
         notes: {
