@@ -14,7 +14,6 @@ dns.setDefaultResultOrder('ipv4first');
 
 let mainWindow = null;
 let tray = null;
-let syncService = null;
 
 const isDev = process.env.NODE_ENV === "development" || !app.isPackaged;
 
@@ -149,12 +148,14 @@ app.whenReady().then(async () => {
   try {
     const db = initializeDatabase();
     runMigrations(db);
-    ({ syncService } = registerAllHandlers(db));
-    const startupImport = syncService?.importLatestBackup?.();
-    if (startupImport && !startupImport.ok) {
-      console.error("Startup backup import failed:", startupImport.message);
-    }
+    const { syncService } = registerAllHandlers(db);
     createWindow();
+
+    setTimeout(() => {
+      syncService?.syncNow({ pullFirst: true }).catch((e) => {
+        console.error("Startup Dropbox sync failed:", e);
+      });
+    }, 2000);
 
     app.on("activate", () => {
       if (BrowserWindow.getAllWindows().length === 0) {
@@ -174,11 +175,6 @@ app.on("window-all-closed", () => {
 });
 
 app.on("before-quit", () => {
-  try {
-    syncService?.exportBackup?.();
-  } catch (error) {
-    console.error("Backup export on close failed:", error);
-  }
   closeDatabase();
   if (tray) {
     tray.destroy();

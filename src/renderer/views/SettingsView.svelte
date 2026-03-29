@@ -13,7 +13,8 @@
     Trash2,
     AlertTriangle,
     RefreshCw,
-    HardDriveDownload,
+    RotateCcw,
+    Cloud,
   } from "lucide-svelte";
   import {
     settings,
@@ -31,17 +32,28 @@
   import ToggleSwitch from "$components/common/ToggleSwitch.svelte";
   import {
     syncConfig,
+    syncOnline,
+    syncHasToken,
+    syncInProgress,
+    syncConnecting,
     loadSyncConfig,
     syncLastSyncAt,
+    syncReverting,
+    revertToBackup,
     saveSyncConfig,
     refreshSyncStatus,
+    synchronizeNow,
+    connectDropbox,
+    disconnectDropbox,
   } from "$lib/stores/syncStore.js";
   let fileInput;
 
   // Local sync form state
-  let syncBackupFolderPath = "";
-  let syncKeepBackups = 5;
+  let syncEnabled = true;
+  let syncIntervalMinutes = 15;
+  let syncRemotePath = "/todo-productivity-sync.json";
   let syncSaving = false;
+  let syncRemoteNotesRoot = "/todo-productivity-notes";
 
   // Clear data dialog state
   let showClearDataDialog = false;
@@ -57,8 +69,10 @@
     await refreshSyncStatus(true);
 
     const cfg = $syncConfig;
-    syncBackupFolderPath = cfg.backupFolderPath || "";
-    syncKeepBackups = Number(cfg.keepBackups || 5);
+    syncEnabled = !!cfg.enabled;
+    syncIntervalMinutes = Number(cfg.intervalMinutes || 15);
+    syncRemotePath = cfg.remotePath || "/todo-productivity-sync.json";
+    syncRemoteNotesRoot = cfg.remoteNotesRoot || "/todo-productivity-notes";
   });
 
   async function handleAutoLaunchChange(event) {
@@ -93,13 +107,28 @@
     syncSaving = true;
     try {
       await saveSyncConfig({
-        backupFolderPath: syncBackupFolderPath?.trim() || "",
-        keepBackups: Math.max(1, Number(syncKeepBackups || 5)),
+        enabled: syncEnabled,
+        intervalMinutes: Math.max(1, Number(syncIntervalMinutes || 15)),
+        remotePath: syncRemotePath?.trim() || "/todo-productivity-sync.json",
+        remoteNotesRoot:
+          syncRemoteNotesRoot?.trim() || "/todo-productivity-notes",
       });
       await refreshSyncStatus(true);
     } finally {
       syncSaving = false;
     }
+  }
+
+  async function handleSyncNowFromSettings() {
+    await synchronizeNow();
+  }
+
+  async function handleConnectDropbox() {
+    await connectDropbox();
+  }
+
+  async function handleDisconnectDropbox() {
+    await disconnectDropbox();
   }
 
   // Clear data functions
@@ -183,42 +212,83 @@
       </div>
     </div>
 
-    <!-- Local Backup Section -->
+    <!-- Dropbox Sync Section -->
     <div class="card animate-fadeIn" style="animation-delay: 25ms">
       <h3
         class="text-sm font-medium text-gray-400 mb-4 flex items-center gap-2"
       >
-        <HardDriveDownload size="{16}" />
-        Local Backups
+        <Cloud size="{16}" />
+        Dropbox Synchronization
       </h3>
 
       <div class="space-y-4">
         <div class="flex items-center justify-between">
           <div>
-            <p class="text-on-surface font-medium">Automatic backup interval</p>
+            <p class="text-on-surface font-medium">Enable Dropbox sync</p>
             <p class="text-sm text-gray-500">
-              Backups are saved every 5 minutes and when app closes
+              Sync database + notes folder to Dropbox
             </p>
           </div>
         </div>
 
-        <div>
-          <label class="block text-sm text-gray-400 mb-2">Backup folder path</label>
-          <input
-            type="text"
-            class="w-full bg-surface-lighter border border-surface-lighter rounded-lg px-3 py-2 text-on-surface"
-            bind:value="{syncBackupFolderPath}"
-            placeholder="Default app userData/backups"
-          />
+        <div class="rounded-lg border border-surface-lighter p-3">
+          <p class="text-sm text-gray-400 mb-2">Dropbox account</p>
+
+          {#if $syncHasToken}
+            <p class="text-sm text-green-400 mb-3">Connected</p>
+            <button
+              class="btn btn-ghost flex items-center gap-2"
+              on:click="{handleDisconnectDropbox}"
+              disabled="{$syncConnecting || $syncInProgress}"
+            >
+              Disconnect Dropbox
+            </button>
+          {:else}
+            <p class="text-sm text-yellow-400 mb-3">Not connected</p>
+            <button
+              class="btn btn-ghost flex items-center gap-2"
+              on:click="{handleConnectDropbox}"
+              disabled="{$syncConnecting || $syncInProgress || !$syncOnline}"
+            >
+              <Cloud size="{16}" />
+              {$syncConnecting ? "Connecting..." : "Connect Dropbox"}
+            </button>
+          {/if}
         </div>
 
         <div>
-          <label class="block text-sm text-gray-400 mb-2">Backups to keep</label>
+          <label class="block text-sm text-gray-400 mb-2"
+            >Sync interval (minutes)</label
+          >
           <input
             type="number"
             min="1"
             class="w-full bg-surface-lighter border border-surface-lighter rounded-lg px-3 py-2 text-on-surface"
-            bind:value="{syncKeepBackups}"
+            bind:value="{syncIntervalMinutes}"
+          />
+        </div>
+
+        <div>
+          <label class="block text-sm text-gray-400 mb-2"
+            >Dropbox DB snapshot path</label
+          >
+          <input
+            type="text"
+            class="w-full bg-surface-lighter border border-surface-lighter rounded-lg px-3 py-2 text-on-surface"
+            bind:value="{syncRemotePath}"
+            placeholder="/todo-productivity-sync.json"
+          />
+        </div>
+
+        <div>
+          <label class="block text-sm text-gray-400 mb-2"
+            >Dropbox notes root folder</label
+          >
+          <input
+            type="text"
+            class="w-full bg-surface-lighter border border-surface-lighter rounded-lg px-3 py-2 text-on-surface"
+            bind:value="{syncRemoteNotesRoot}"
+            placeholder="/todo-productivity-notes"
           />
         </div>
 
@@ -228,13 +298,40 @@
             on:click="{handleSaveSyncSettings}"
             disabled="{syncSaving}"
           >
-            <HardDriveDownload size="{16}" />
-            {syncSaving ? "Saving..." : "Save Backup Settings"}
+            <Cloud size="{16}" />
+            {syncSaving ? "Saving..." : "Save Sync Settings"}
           </button>
 
+          <button
+            class="btn btn-ghost flex items-center gap-2"
+            on:click="{handleSyncNowFromSettings}"
+            disabled="{$syncInProgress || !$syncOnline || !$syncHasToken}"
+          >
+            <RefreshCw
+              size="{16}"
+              class="{$syncInProgress ? 'animate-spin' : ''}"
+            />
+            {$syncInProgress ? "Synchronizing..." : "Synchronize now"}
+          </button>
+
+          <button
+            class="btn btn-ghost flex items-center gap-2 text-yellow-400 hover:text-yellow-300"
+            on:click="{revertToBackup}"
+            disabled="{$syncReverting ||
+              $syncInProgress ||
+              !$syncOnline ||
+              !$syncHasToken}"
+            title="Restore the state from the Dropbox backup created before the last sync"
+          >
+            <RotateCcw
+              size="{16}"
+              class="{$syncReverting ? 'animate-spin' : ''}"
+            />
+            {$syncReverting ? "Reverting..." : "Revert to backup"}
+          </button>
           {#if $syncLastSyncAt}
             <p class="text-xs text-gray-500">
-              Last backup: {new Date($syncLastSyncAt).toLocaleString()}
+              Last sync: {new Date($syncLastSyncAt).toLocaleString()}
             </p>
           {/if}
         </div>

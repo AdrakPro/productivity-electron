@@ -6,14 +6,21 @@
     Globe,
     Home,
     Settings,
+    RefreshCw,
+    CloudOff,
   } from "lucide-svelte";
   import { onDestroy, onMount } from "svelte";
   import { currentPage, viewMode } from "$lib/stores/viewStore.js";
   import {
+    syncInProgress,
+    syncOnline,
+    syncHasToken,
     refreshSyncStatus,
+    synchronizeNow,
     startSyncStatusPolling,
     stopSyncStatusPolling,
   } from "$lib/stores/syncStore.js";
+  import { warning } from "$lib/stores/toastStore.js";
 
   function navigateTo(page) {
     currentPage.set(page);
@@ -21,6 +28,14 @@
 
   function toggleViewMode() {
     viewMode.update((current) => (current === "daily" ? "global" : "daily"));
+  }
+
+  async function handleSyncNow() {
+    if (!$syncHasToken) {
+      warning("DROPBOX_ACCESS_TOKEN is missing in .env", 5000);
+      return;
+    }
+    await synchronizeNow();
   }
 
   onMount(() => {
@@ -97,8 +112,32 @@
       </button>
     </nav>
 
-    <!-- Right: Settings -->
+    <!-- Right: Sync + Settings -->
     <div class="flex-1 flex justify-end items-center gap-2">
+      <button
+        class="btn btn-ghost flex items-center gap-2 px-3 py-2"
+        on:click="{handleSyncNow}"
+        disabled="{$syncInProgress || !$syncOnline || !$syncHasToken}"
+        title="{!$syncHasToken
+          ? 'Missing DROPBOX_ACCESS_TOKEN'
+          : !$syncOnline
+            ? 'Offline'
+            : 'Synchronize now'}"
+      >
+        {#if !$syncOnline}
+          <CloudOff size="{18}" />
+          <span class="text-sm">Offline</span>
+        {:else}
+          <RefreshCw
+            size="{18}"
+            class="{$syncInProgress ? 'animate-spin' : ''}"
+          />
+          <span class="text-sm">
+            {$syncInProgress ? "Synchronizing..." : "Synchronize now"}
+          </span>
+        {/if}
+      </button>
+
       <button
         class="btn btn-ghost flex items-center gap-2 px-3 py-2 {$currentPage ===
         'settings'
