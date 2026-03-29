@@ -9,18 +9,25 @@ class TemplateRepository {
   prepareStatements() {
     this.statements = {
       getAll: this.db.prepare(
-        "SELECT * FROM templates ORDER BY updated_at DESC",
+        "SELECT * FROM templates WHERE deleted = 0 ORDER BY updated_at DESC",
       ),
-      getById: this.db.prepare("SELECT * FROM templates WHERE id = ?"),
+      getById: this.db.prepare(
+        "SELECT * FROM templates WHERE id = ? AND deleted = 0",
+      ),
       create: this.db.prepare(`
-        INSERT INTO templates (id, name, description, tasks, created_at, updated_at)
-        VALUES (?, ?, ?, ?, datetime('now'), datetime('now'))
+        INSERT INTO templates (id, name, description, tasks, created_at, updated_at, deleted)
+        VALUES (?, ?, ?, ?, datetime('now'), datetime('now'), 0)
       `),
       update: this.db.prepare(`
         UPDATE templates SET name = ?, description = ?, tasks = ?, updated_at = datetime('now')
         WHERE id = ?
       `),
-      delete: this.db.prepare("DELETE FROM templates WHERE id = ?"),
+      delete: this.db.prepare(`
+        UPDATE templates
+        SET deleted = 1,
+            updated_at = datetime('now')
+        WHERE id = ? AND deleted = 0
+      `),
     };
   }
 

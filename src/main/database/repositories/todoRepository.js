@@ -12,16 +12,16 @@ class TodoRepository {
   prepareStatements() {
     this.statements = {
       getAll: this.db.prepare(`
-        SELECT * FROM todos ORDER BY created_at DESC
+        SELECT * FROM todos WHERE deleted = 0 ORDER BY created_at DESC
       `),
 
       getById: this.db.prepare(`
-        SELECT * FROM todos WHERE id = ?
+        SELECT * FROM todos WHERE id = ? AND deleted = 0
       `),
 
       getByDate: this.db.prepare(`
         SELECT * FROM todos 
-        WHERE due_date = ? AND is_global = 0 AND is_archived = 0
+        WHERE due_date = ? AND is_global = 0 AND is_archived = 0 AND deleted = 0
         ORDER BY 
           CASE priority 
             WHEN 'urgent' THEN 0 
@@ -35,7 +35,7 @@ class TodoRepository {
 
       getGlobal: this.db.prepare(`
         SELECT * FROM todos 
-        WHERE is_global = 1 AND is_archived = 0
+        WHERE is_global = 1 AND is_archived = 0 AND deleted = 0
         ORDER BY 
           CASE priority 
             WHEN 'urgent' THEN 0 
@@ -49,7 +49,7 @@ class TodoRepository {
 
       getArchived: this.db.prepare(`
         SELECT * FROM todos 
-        WHERE is_archived = 1
+        WHERE is_archived = 1 AND deleted = 0
         ORDER BY completed_at DESC
       `),
 
@@ -73,7 +73,25 @@ class TodoRepository {
       `),
 
       delete: this.db.prepare(`
-        DELETE FROM todos WHERE id = ?
+        UPDATE todos
+        SET deleted = 1,
+            is_archived = 1,
+            updated_at = datetime('now')
+        WHERE id = ? AND deleted = 0
+      `),
+
+      tombstoneSubtasksByTodoId: this.db.prepare(`
+        UPDATE subtasks
+        SET deleted = 1,
+            updated_at = datetime('now')
+        WHERE todo_id = ? AND deleted = 0
+      `),
+
+      tombstoneReviewsByTodoId: this.db.prepare(`
+        UPDATE reviews
+        SET deleted = 1,
+            updated_at = datetime('now')
+        WHERE todo_id = ? AND deleted = 0
       `),
 
       archive: this.db.prepare(`
@@ -172,8 +190,16 @@ class TodoRepository {
   }
 
   delete(id) {
-    const result = this.statements.delete.run(id);
-    return result.changes > 0;
+    const tx = this.db.transaction((todoId) => {
+      const todoResult = this.statements.delete.run(todoId);
+      if (todoResult.changes > 0) {
+        this.statements.tombstoneSubtasksByTodoId.run(todoId);
+        this.statements.tombstoneReviewsByTodoId.run(todoId);
+      }
+      return todoResult.changes > 0;
+    });
+
+    return tx(id);
   }
 
   archive(id) {

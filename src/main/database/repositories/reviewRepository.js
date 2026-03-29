@@ -15,7 +15,7 @@ class ReviewRepository {
         SELECT r.*, t.title as todo_title
         FROM reviews r
         JOIN todos t ON r.todo_id = t.id
-        WHERE r.todo_id = ?
+        WHERE r.todo_id = ? AND r.deleted = 0
         ORDER BY r.review_number ASC
       `),
 
@@ -23,7 +23,7 @@ class ReviewRepository {
         SELECT r.*, t.title as todo_title
         FROM reviews r
                JOIN todos t ON r.todo_id = t.id
-        WHERE r.subtask_id = ?
+        WHERE r.subtask_id = ? AND r.deleted = 0
         ORDER BY r.review_number ASC
       `),
 
@@ -31,14 +31,14 @@ class ReviewRepository {
         SELECT r.*, t.title as todo_title
         FROM reviews r
         JOIN todos t ON r.todo_id = t.id
-        WHERE r.id = ?
+        WHERE r.id = ? AND r.deleted = 0
       `),
 
       getByDate: this.db.prepare(`
         SELECT r.*, t.title as todo_title
         FROM reviews r
         JOIN todos t ON r.todo_id = t.id
-        WHERE r.review_date = ? AND r.is_completed = 0
+        WHERE r.review_date = ? AND r.is_completed = 0 AND r.deleted = 0
         ORDER BY r.review_date ASC, r.review_number ASC
       `),
 
@@ -46,7 +46,7 @@ class ReviewRepository {
         SELECT r.*, t.title as todo_title
         FROM reviews r
         JOIN todos t ON r.todo_id = t.id
-        WHERE r.review_date <= ? AND r.is_completed = 0
+        WHERE r.review_date <= ? AND r.is_completed = 0 AND r.deleted = 0
         ORDER BY r.review_date ASC, r.review_number ASC
       `),
 
@@ -54,7 +54,7 @@ class ReviewRepository {
         SELECT r.*, t.title as todo_title
         FROM reviews r
         JOIN todos t ON r.todo_id = t.id
-        WHERE r.is_completed = 0
+        WHERE r.is_completed = 0 AND r.deleted = 0
         ORDER BY r.review_date ASC, r.review_number ASC
       `),
 
@@ -62,31 +62,39 @@ class ReviewRepository {
         SELECT r.*, t.title as todo_title
         FROM reviews r
         JOIN todos t ON r.todo_id = t.id
+        WHERE r.deleted = 0
         ORDER BY r.review_date ASC, r.review_number ASC
       `),
 
       create: this.db.prepare(`
-        INSERT INTO reviews (id, todo_id, subtask_id, subtask_title, review_number, review_date, priority, created_at)
-        VALUES (@id, @todo_id, @subtask_id, @subtask_title, @review_number, @review_date, @priority, datetime('now'))
+        INSERT INTO reviews (id, todo_id, subtask_id, subtask_title, review_number, review_date, priority, created_at, updated_at, deleted)
+        VALUES (@id, @todo_id, @subtask_id, @subtask_title, @review_number, @review_date, @priority, datetime('now'), datetime('now'), 0)
       `),
 
       deleteBySubtaskId: this.db.prepare(`
-        DELETE FROM reviews WHERE subtask_id = ?
+        UPDATE reviews
+        SET deleted = 1,
+            updated_at = datetime('now')
+        WHERE subtask_id = ? AND deleted = 0
       `),
 
       complete: this.db.prepare(`
         UPDATE reviews
         SET is_completed = 1,
-            completed_at = datetime('now')
-        WHERE id = ?
+            completed_at = datetime('now'),
+            updated_at = datetime('now')
+        WHERE id = ? AND deleted = 0
       `),
 
       updatePriority: this.db.prepare(`
-        UPDATE reviews SET priority = ? WHERE id = ?
+        UPDATE reviews
+        SET priority = ?,
+            updated_at = datetime('now')
+        WHERE id = ? AND deleted = 0
       `),
 
       getCompletedCount: this.db.prepare(`
-        SELECT COUNT(*) as count FROM reviews WHERE is_completed = 1
+        SELECT COUNT(*) as count FROM reviews WHERE is_completed = 1 AND deleted = 0
       `),
     };
   }

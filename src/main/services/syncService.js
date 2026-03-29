@@ -5,7 +5,6 @@ const fs = require("fs");
 const path = require("path");
 const http = require("http");
 const crypto = require("crypto");
-const { randomUUID } = require("crypto");
 const { loadAppConfig } = require("../config/appConfig.js");
 
 const BACKUP_INTERVAL_MINUTES = 5;
@@ -134,13 +133,16 @@ class SyncService {
 
   buildPayload() {
     return {
-      meta: { version: 4, exportedAt: new Date().toISOString() },
+      meta: { version: 5, exportedAt: new Date().toISOString() },
       data: {
         todos: this.db.prepare("SELECT * FROM todos ORDER BY id ASC").all(),
         subtasks: this.db
           .prepare("SELECT * FROM subtasks ORDER BY id ASC")
           .all(),
         reviews: this.db.prepare("SELECT * FROM reviews ORDER BY id ASC").all(),
+        templates: this.db
+          .prepare("SELECT * FROM templates ORDER BY id ASC")
+          .all(),
         statistics: this.db
           .prepare("SELECT * FROM statistics WHERE id = 1")
           .get(),
@@ -150,6 +152,172 @@ class SyncService {
         settings: this.db.prepare("SELECT * FROM settings").all(),
         notes: {
           workingDirectory: this.getWorkingDirectoryPath(),
+        },
+      },
+    };
+  }
+
+  _toMillis(ts) {
+    if (!ts || typeof ts !== "string") return 0;
+    const normalized = ts.includes("T") ? ts : ts.replace(" ", "T") + "Z";
+    const parsed = Date.parse(normalized);
+    return Number.isFinite(parsed) ? parsed : 0;
+  }
+
+  _isIncomingNewer(localUpdatedAt, incomingUpdatedAt) {
+    return this._toMillis(incomingUpdatedAt) > this._toMillis(localUpdatedAt);
+  }
+
+  _normalizeIncomingData(data = {}) {
+    const now = new Date().toISOString();
+    return {
+      todos: (data.todos || []).map((t) => ({
+        ...t,
+        deleted: t.deleted ? 1 : 0,
+      })),
+      subtasks: (data.subtasks || []).map((s) => ({
+        ...s,
+        updated_at: s.updated_at || s.created_at || now,
+        deleted: s.deleted ? 1 : 0,
+      })),
+      reviews: (data.reviews || []).map((r) => ({
+        ...r,
+        updated_at: r.updated_at || r.created_at || now,
+        deleted: r.deleted ? 1 : 0,
+      })),
+      templates: (data.templates || []).map((t) => ({
+        ...t,
+        updated_at: t.updated_at || t.created_at || now,
+        deleted: t.deleted ? 1 : 0,
+      })),
+      streaks: (data.streaks || []).map((s) => ({
+        ...s,
+        updated_at: s.updated_at || s.created_at || now,
+      })),
+      statistics: data.statistics
+        ? {
+            ...data.statistics,
+            updated_at: data.statistics.updated_at || now,
+          }
+        : null,
+      notes: data.notes || {},
+    };
+  }
+
+  buildDeltaPayload(lastSyncedAt) {
+    return {
+      meta: {
+        version: 5,
+        exportedAt: new Date().toISOString(),
+        lastSyncedAt: lastSyncedAt || null,
+      },
+      data: {
+        todos: lastSyncedAt
+          ? this.db
+              .prepare("SELECT * FROM todos WHERE updated_at > ? ORDER BY id ASC")
+              .all(lastSyncedAt)
+          : this.db.prepare("SELECT * FROM todos ORDER BY id ASC").all(),
+        subtasks: lastSyncedAt
+          ? this.db
+              .prepare(
+                "SELECT * FROM subtasks WHERE updated_at > ? ORDER BY id ASC",
+              )
+              .all(lastSyncedAt)
+          : this.db.prepare("SELECT * FROM subtasks ORDER BY id ASC").all(),
+        reviews: lastSyncedAt
+          ? this.db
+              .prepare("SELECT * FROM reviews WHERE updated_at > ? ORDER BY id ASC")
+              .all(lastSyncedAt)
+          : this.db.prepare("SELECT * FROM reviews ORDER BY id ASC").all(),
+        templates: lastSyncedAt
+          ? this.db
+              .prepare(
+                "SELECT * FROM templates WHERE updated_at > ? ORDER BY id ASC",
+              )
+              .all(lastSyncedAt)
+          : this.db.prepare("SELECT * FROM templates ORDER BY id ASC").all(),
+        streaks: lastSyncedAt
+          ? this.db
+              .prepare("SELECT * FROM streaks WHERE updated_at > ? ORDER BY date DESC")
+              .all(lastSyncedAt)
+          : this.db.prepare("SELECT * FROM streaks ORDER BY date DESC").all(),
+        statistics: lastSyncedAt
+          ? this.db
+              .prepare("SELECT * FROM statistics WHERE id = 1 AND updated_at > ?")
+              .get(lastSyncedAt)
+          : this.db.prepare("SELECT * FROM statistics WHERE id = 1").get(),
+        notes: {
+          workingDirectory: this.getWorkingDirectoryPath(),
+        },
+      },
+    };
+  }
+
+  _mergeRecordArraysByKey(base = [], incoming = [], key, updatedAtKey = "updated_at") {
+    const map = new Map((base || []).map((item) => [item[key], item]));
+
+    for (const next of incoming || []) {
+      const current = map.get(next[key]);
+      if (!current) {
+        map.set(next[key], next);
+        continue;
+      }
+
+      if (this._isIncomingNewer(current[updatedAtKey], next[updatedAtKey])) {
+        map.set(next[key], next);
+      }
+    }
+
+    return Array.from(map.values());
+  }
+
+  _mergePayloadData(basePayload, incomingPayload) {
+    const baseData = this._normalizeIncomingData(basePayload?.data || {});
+    const incomingData = this._normalizeIncomingData(incomingPayload?.data || {});
+
+    const mergedStatistics =
+      incomingData.statistics &&
+      (!baseData.statistics ||
+        this._isIncomingNewer(
+          baseData.statistics.updated_at,
+          incomingData.statistics.updated_at,
+        ))
+        ? incomingData.statistics
+        : baseData.statistics;
+
+    return {
+      meta: {
+        version: 5,
+        exportedAt: new Date().toISOString(),
+      },
+      data: {
+        todos: this._mergeRecordArraysByKey(baseData.todos, incomingData.todos, "id"),
+        subtasks: this._mergeRecordArraysByKey(
+          baseData.subtasks,
+          incomingData.subtasks,
+          "id",
+        ),
+        reviews: this._mergeRecordArraysByKey(
+          baseData.reviews,
+          incomingData.reviews,
+          "id",
+        ),
+        templates: this._mergeRecordArraysByKey(
+          baseData.templates,
+          incomingData.templates,
+          "id",
+        ),
+        streaks: this._mergeRecordArraysByKey(
+          baseData.streaks,
+          incomingData.streaks,
+          "date",
+        ),
+        statistics: mergedStatistics,
+        notes: {
+          workingDirectory:
+            incomingData?.notes?.workingDirectory ||
+            baseData?.notes?.workingDirectory ||
+            this.getWorkingDirectoryPath(),
         },
       },
     };
@@ -429,68 +597,7 @@ class SyncService {
   }
 
   replaceLocalDbData(snapshot) {
-    if (!snapshot?.data) return;
-    const d = snapshot.data;
-
-    const tx = this.db.transaction(() => {
-      this.db.exec(
-        "DELETE FROM reviews; DELETE FROM subtasks; DELETE FROM todos; DELETE FROM streaks;",
-      );
-
-      for (const t of d.todos || []) {
-        this.db
-          .prepare(
-            `INSERT INTO todos (id,title,description,due_date,is_global,is_completed,is_archived,completed_at,created_at,updated_at,priority,labels)
-             VALUES (@id,@title,@description,@due_date,@is_global,@is_completed,@is_archived,@completed_at,@created_at,@updated_at,@priority,@labels)`,
-          )
-          .run(t);
-      }
-
-      for (const s of d.subtasks || []) {
-        this.db
-          .prepare(
-            `INSERT INTO subtasks (id,todo_id,title,is_review,is_completed,sort_order,completed_at,created_at,deadline,tags)
-             VALUES (@id,@todo_id,@title,@is_review,@is_completed,@sort_order,@completed_at,@created_at,@deadline,@tags)`,
-          )
-          .run(s);
-      }
-
-      for (const r of d.reviews || []) {
-        this.db
-          .prepare(
-            `INSERT INTO reviews (id,todo_id,subtask_id,subtask_title,round,review_date,priority,is_completed,completed_at,created_at,updated_at,review_number)
-             VALUES (@id,@todo_id,@subtask_id,@subtask_title,@round,@review_date,@priority,@is_completed,@completed_at,@created_at,@updated_at,@review_number)`,
-          )
-          .run(r);
-      }
-
-      if (d.statistics) {
-        this.db
-          .prepare(
-            `UPDATE statistics
-             SET total_completed=@total_completed,current_streak=@current_streak,longest_streak=@longest_streak,last_activity_date=@last_activity_date,total_reviews_completed=@total_reviews_completed
-             WHERE id=1`,
-          )
-          .run({
-            total_completed: d.statistics.total_completed || 0,
-            current_streak: d.statistics.current_streak || 0,
-            longest_streak: d.statistics.longest_streak || 0,
-            last_activity_date: d.statistics.last_activity_date || null,
-            total_reviews_completed: d.statistics.total_reviews_completed || 0,
-          });
-      }
-
-      for (const s of d.streaks || []) {
-        this.db
-          .prepare(
-            `INSERT INTO streaks (id,date,completed_count,created_at)
-             VALUES (@id,@date,@completed_count,@created_at)`,
-          )
-          .run(s);
-      }
-    });
-
-    tx();
+    this._mergeRemoteIntoLocal(snapshot);
   }
 
   /**
@@ -508,13 +615,31 @@ class SyncService {
         return true;
       if (
         this.db
-          .prepare("SELECT 1 FROM subtasks WHERE created_at > ? LIMIT 1")
+          .prepare("SELECT 1 FROM subtasks WHERE updated_at > ? LIMIT 1")
           .get(lastSyncAt)
       )
         return true;
       if (
         this.db
-          .prepare("SELECT 1 FROM reviews WHERE created_at > ? LIMIT 1")
+          .prepare("SELECT 1 FROM reviews WHERE updated_at > ? LIMIT 1")
+          .get(lastSyncAt)
+      )
+        return true;
+      if (
+        this.db
+          .prepare("SELECT 1 FROM templates WHERE updated_at > ? LIMIT 1")
+          .get(lastSyncAt)
+      )
+        return true;
+      if (
+        this.db
+          .prepare("SELECT 1 FROM streaks WHERE updated_at > ? LIMIT 1")
+          .get(lastSyncAt)
+      )
+        return true;
+      if (
+        this.db
+          .prepare("SELECT 1 FROM statistics WHERE updated_at > ? LIMIT 1")
           .get(lastSyncAt)
       )
         return true;
@@ -534,115 +659,139 @@ class SyncService {
    */
   _mergeRemoteIntoLocal(remote) {
     if (!remote?.data) return;
-    const d = remote.data;
+    const d = this._normalizeIncomingData(remote.data);
 
     const tx = this.db.transaction(() => {
-      // ── Todos ──────────────────────────────────────────────────────────────
-      const localTodosMap = new Map(
-        this.db
-          .prepare("SELECT id, updated_at FROM todos")
-          .all()
-          .map((r) => [r.id, r]),
-      );
-
       for (const rt of d.todos || []) {
-        const local = localTodosMap.get(rt.id);
+        const local = this.db
+          .prepare("SELECT id, updated_at FROM todos WHERE id = ?")
+          .get(rt.id);
         if (!local) {
           this.db
             .prepare(
-              `INSERT OR IGNORE INTO todos (id,title,description,due_date,is_global,is_completed,is_archived,completed_at,created_at,updated_at,priority,labels)
-               VALUES (@id,@title,@description,@due_date,@is_global,@is_completed,@is_archived,@completed_at,@created_at,@updated_at,@priority,@labels)`,
+              `INSERT INTO todos (id,title,description,due_date,is_global,is_completed,is_archived,completed_at,created_at,updated_at,priority,labels,deleted)
+               VALUES (@id,@title,@description,@due_date,@is_global,@is_completed,@is_archived,@completed_at,@created_at,@updated_at,@priority,@labels,@deleted)`,
             )
             .run(rt);
-        } else if (local.updated_at !== rt.updated_at) {
-          // Conflict: insert remote as a duplicate with conflict marker
-          const conflictId = randomUUID();
+        } else if (this._isIncomingNewer(local.updated_at, rt.updated_at)) {
           this.db
             .prepare(
-              `INSERT INTO todos (id,title,description,due_date,is_global,is_completed,is_archived,completed_at,created_at,updated_at,priority,labels)
-               VALUES (@id,@title,@description,@due_date,@is_global,@is_completed,@is_archived,@completed_at,@created_at,@updated_at,@priority,@labels)`,
+              `UPDATE todos
+               SET title=@title,description=@description,due_date=@due_date,is_global=@is_global,is_completed=@is_completed,is_archived=@is_archived,completed_at=@completed_at,created_at=@created_at,updated_at=@updated_at,priority=@priority,labels=@labels,deleted=@deleted
+               WHERE id=@id`,
             )
-            .run({ ...rt, id: conflictId, title: "[CONFLICT] " + rt.title });
-
-          // Reparent any remote subtasks for this todo to the conflict copy
-          for (const rs of d.subtasks || []) {
-            if (rs.todo_id === rt.id && !localTodosMap.has(rs.id)) {
-              const conflictSubId = randomUUID();
-              this.db
-                .prepare(
-                  `INSERT OR IGNORE INTO subtasks (id,todo_id,title,is_review,is_completed,sort_order,completed_at,created_at,deadline,tags)
-                   VALUES (@id,@todo_id,@title,@is_review,@is_completed,@sort_order,@completed_at,@created_at,@deadline,@tags)`,
-                )
-                .run({ ...rs, id: conflictSubId, todo_id: conflictId });
-            }
-          }
+            .run(rt);
         }
-        // else: same updated_at -> no change needed
       }
-
-      // ── Subtasks (remote-only, parent already exists locally) ───────────────
-      const localSubIds = new Set(
-        this.db
-          .prepare("SELECT id FROM subtasks")
-          .all()
-          .map((r) => r.id),
-      );
 
       for (const rs of d.subtasks || []) {
-        if (!localSubIds.has(rs.id)) {
-          const todoExists = this.db
-            .prepare("SELECT 1 FROM todos WHERE id = ?")
-            .get(rs.todo_id);
-          if (todoExists) {
-            this.db
-              .prepare(
-                `INSERT OR IGNORE INTO subtasks (id,todo_id,title,is_review,is_completed,sort_order,completed_at,created_at,deadline,tags)
-                 VALUES (@id,@todo_id,@title,@is_review,@is_completed,@sort_order,@completed_at,@created_at,@deadline,@tags)`,
-              )
-              .run(rs);
-          }
-        }
-      }
-
-      // ── Reviews (remote-only, parent todo exists locally) ───────────────────
-      const localRevIds = new Set(
-        this.db
-          .prepare("SELECT id FROM reviews")
-          .all()
-          .map((r) => r.id),
-      );
-
-      for (const rr of d.reviews || []) {
-        if (!localRevIds.has(rr.id)) {
-          const todoExists = this.db
-            .prepare("SELECT 1 FROM todos WHERE id = ?")
-            .get(rr.todo_id);
-          if (todoExists) {
-            this.db
-              .prepare(
-                `INSERT OR IGNORE INTO reviews (id,todo_id,subtask_id,subtask_title,round,review_date,priority,is_completed,completed_at,created_at,updated_at,review_number)
-                 VALUES (@id,@todo_id,@subtask_id,@subtask_title,@round,@review_date,@priority,@is_completed,@completed_at,@created_at,@updated_at,@review_number)`,
-              )
-              .run(rr);
-          }
-        }
-      }
-
-      // ── Streaks: keep the higher completed_count ─────────────────────────────
-      for (const rs of d.streaks || []) {
-        const localStreak = this.db
-          .prepare("SELECT id, completed_count FROM streaks WHERE date = ?")
-          .get(rs.date);
-        if (!localStreak) {
+        const local = this.db
+          .prepare("SELECT id, updated_at FROM subtasks WHERE id = ?")
+          .get(rs.id);
+        if (!local) {
           this.db
             .prepare(
-              `INSERT OR IGNORE INTO streaks (id,date,completed_count,created_at) VALUES (@id,@date,@completed_count,@created_at)`,
+              `INSERT INTO subtasks (id,todo_id,title,is_review,is_completed,sort_order,completed_at,created_at,updated_at,deadline,tags,deleted)
+               VALUES (@id,@todo_id,@title,@is_review,@is_completed,@sort_order,@completed_at,@created_at,@updated_at,@deadline,@tags,@deleted)`,
             )
             .run(rs);
-        } else if (rs.completed_count > localStreak.completed_count) {
+        } else if (this._isIncomingNewer(local.updated_at, rs.updated_at)) {
           this.db
-            .prepare("UPDATE streaks SET completed_count = ? WHERE date = ?")
-            .run(rs.completed_count, rs.date);
+            .prepare(
+              `UPDATE subtasks
+               SET todo_id=@todo_id,title=@title,is_review=@is_review,is_completed=@is_completed,sort_order=@sort_order,completed_at=@completed_at,created_at=@created_at,updated_at=@updated_at,deadline=@deadline,tags=@tags,deleted=@deleted
+               WHERE id=@id`,
+            )
+            .run(rs);
+        }
+      }
+
+      for (const rr of d.reviews || []) {
+        const local = this.db
+          .prepare("SELECT id, updated_at FROM reviews WHERE id = ?")
+          .get(rr.id);
+        if (!local) {
+          this.db
+            .prepare(
+              `INSERT INTO reviews (id,todo_id,subtask_id,subtask_title,round,review_date,priority,is_completed,completed_at,created_at,updated_at,review_number,deleted)
+               VALUES (@id,@todo_id,@subtask_id,@subtask_title,@round,@review_date,@priority,@is_completed,@completed_at,@created_at,@updated_at,@review_number,@deleted)`,
+            )
+            .run(rr);
+        } else if (this._isIncomingNewer(local.updated_at, rr.updated_at)) {
+          this.db
+            .prepare(
+              `UPDATE reviews
+               SET todo_id=@todo_id,subtask_id=@subtask_id,subtask_title=@subtask_title,round=@round,review_date=@review_date,priority=@priority,is_completed=@is_completed,completed_at=@completed_at,created_at=@created_at,updated_at=@updated_at,review_number=@review_number,deleted=@deleted
+               WHERE id=@id`,
+            )
+            .run(rr);
+        }
+      }
+
+      for (const rt of d.templates || []) {
+        const local = this.db
+          .prepare("SELECT id, updated_at FROM templates WHERE id = ?")
+          .get(rt.id);
+        if (!local) {
+          this.db
+            .prepare(
+              `INSERT INTO templates (id,name,description,tasks,created_at,updated_at,deleted)
+               VALUES (@id,@name,@description,@tasks,@created_at,@updated_at,@deleted)`,
+            )
+            .run(rt);
+        } else if (this._isIncomingNewer(local.updated_at, rt.updated_at)) {
+          this.db
+            .prepare(
+              `UPDATE templates
+               SET name=@name,description=@description,tasks=@tasks,created_at=@created_at,updated_at=@updated_at,deleted=@deleted
+               WHERE id=@id`,
+            )
+            .run(rt);
+        }
+      }
+
+      for (const rs of d.streaks || []) {
+        const local = this.db
+          .prepare("SELECT id, updated_at FROM streaks WHERE date = ?")
+          .get(rs.date);
+        if (!local) {
+          this.db
+            .prepare(
+              `INSERT INTO streaks (id,date,completed_count,created_at,updated_at)
+               VALUES (@id,@date,@completed_count,@created_at,@updated_at)`,
+            )
+            .run(rs);
+        } else if (this._isIncomingNewer(local.updated_at, rs.updated_at)) {
+          this.db
+            .prepare(
+              "UPDATE streaks SET completed_count = @completed_count, created_at = @created_at, updated_at = @updated_at WHERE date = @date",
+            )
+            .run(rs);
+        }
+      }
+
+      if (d.statistics) {
+        const localStats = this.db
+          .prepare("SELECT updated_at FROM statistics WHERE id = 1")
+          .get();
+        if (
+          !localStats ||
+          this._isIncomingNewer(localStats.updated_at, d.statistics.updated_at)
+        ) {
+          this.db
+            .prepare(
+              `UPDATE statistics
+               SET total_completed=@total_completed,current_streak=@current_streak,longest_streak=@longest_streak,last_activity_date=@last_activity_date,total_reviews_completed=@total_reviews_completed,updated_at=@updated_at
+               WHERE id=1`,
+            )
+            .run({
+              total_completed: d.statistics.total_completed || 0,
+              current_streak: d.statistics.current_streak || 0,
+              longest_streak: d.statistics.longest_streak || 0,
+              last_activity_date: d.statistics.last_activity_date || null,
+              total_reviews_completed: d.statistics.total_reviews_completed || 0,
+              updated_at: d.statistics.updated_at,
+            });
         }
       }
     });
@@ -780,13 +929,11 @@ class SyncService {
   }
 
   /**
-   * Smart sync with merge, backup, and conflict resolution:
-   *  1. Always back up the current remote snapshot before overwriting.
-   *  2. Compare remote exportedAt vs local lastSyncAt to determine who changed.
-   *  3. If only remote changed  -> pull (replace local).
-   *  4. If only local changed   -> push (replace remote).
-   *  5. If both changed         -> merge remote into local, then push merged result.
-   *  6. If neither changed      -> push local (keep remote fresh).
+   * Incremental Dropbox sync:
+   *  1. Pull remote snapshot and merge it into local using updated_at (LWW).
+   *  2. Build local delta containing only records changed after last sync.
+   *  3. Merge local delta into remote snapshot and upload merged remote snapshot.
+   *  4. Update last sync timestamp.
    */
   async syncNow({ pullFirst = false } = {}) {
     if (this.isSyncing) return { ok: false, message: "Already syncing" };
@@ -798,52 +945,29 @@ class SyncService {
     try {
       const lastSyncAt = this.settingsRepo.get("dropboxLastSyncAt", null);
       const remote = await this.downloadDbSnapshotFromDropbox();
-
-      // Always create a backup of the current remote before any change
-      await this.backupRemoteSnapshot();
-
       if (remote) {
-        const remoteExportedAt = remote?.meta?.exportedAt || null;
-        const remoteChanged =
-          !lastSyncAt || (remoteExportedAt && remoteExportedAt > lastSyncAt);
-        const localChanged = this._localHasChangedSince(lastSyncAt);
+        this._mergeRemoteIntoLocal(remote);
 
-        console.log(
-          `Sync: remoteChanged=${remoteChanged}, localChanged=${localChanged}, lastSyncAt=${lastSyncAt}`,
-        );
-
-        if (remoteChanged && localChanged) {
-          console.log("Sync: both changed - merging remote into local");
-          this._mergeRemoteIntoLocal(remote);
-
-          const workingDirectory =
-            remote?.data?.notes?.workingDirectory ||
-            this.getWorkingDirectoryPath();
-          if (workingDirectory) {
-            this.settingsRepo.set("workingDirectory", workingDirectory);
-            await this.downloadNotesDirectoryFromDropbox(workingDirectory);
-          }
-        } else if (remoteChanged && !localChanged) {
-          console.log("Sync: only remote changed - pulling");
-          this.replaceLocalDbData(remote);
-
-          const workingDirectory =
-            remote?.data?.notes?.workingDirectory ||
-            this.getWorkingDirectoryPath();
-          if (workingDirectory) {
-            this.settingsRepo.set("workingDirectory", workingDirectory);
-            await this.downloadNotesDirectoryFromDropbox(workingDirectory);
-          }
-        } else {
-          console.log("Sync: local is newer or equal - pushing");
+        const workingDirectory =
+          remote?.data?.notes?.workingDirectory || this.getWorkingDirectoryPath();
+        if (workingDirectory) {
+          this.settingsRepo.set("workingDirectory", workingDirectory);
+          await this.downloadNotesDirectoryFromDropbox(workingDirectory);
         }
-      } else {
-        console.log("Sync: no remote snapshot found - will push local");
       }
 
-      // Push final local state to remote
-      const payload = this.buildPayload();
-      await this.uploadDbSnapshotToDropbox(payload);
+      const localDelta = this.buildDeltaPayload(lastSyncAt);
+      const hasLocalChanges = this._localHasChangedSince(lastSyncAt);
+
+      if (remote && hasLocalChanges) {
+        await this.backupRemoteSnapshot();
+      }
+
+      const payloadToUpload = remote
+        ? this._mergePayloadData(remote, localDelta)
+        : localDelta;
+
+      await this.uploadDbSnapshotToDropbox(payloadToUpload);
       const notesResult = await this.uploadNotesDirectoryToDropbox();
 
       this.settingsRepo.set("dropboxLastSyncAt", new Date().toISOString());

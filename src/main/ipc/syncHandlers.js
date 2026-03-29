@@ -9,7 +9,7 @@ function registerSyncHandlers(syncService) {
     online: syncService.isOnline(),
     syncing: syncService.isSyncing,
     hasToken: !!syncService.getClient(),
-    astSyncAt: syncService.settingsRepo.get("dropboxLastSyncAt", null),
+    lastSyncAt: syncService.settingsRepo.get("dropboxLastSyncAt", null),
   }));
   ipcMain.handle("sync:now", async (_e, opts) =>
     syncService.syncNow(opts || {}),
